@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light dark;
+  /* Chart roles (data-viz reference palette: series 1 blue, series 2 orange) */
+  --chart-surface: #ffffff;
+  --chart-grid: #e2e8f0;
+  --chart-text: #0f172a;
+  --chart-muted: #64748b;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chart-surface: #0f172a;
+    --chart-grid: #1e293b;
+    --chart-text: #f1f5f9;
+    --chart-muted: #94a3b8;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  background: #f8fafc;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #020617;
+  }
+}
+
+/* iOS Safari auto-zooms the page when a focused form field is under 16px. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Keep content clear of the iPhone notch/Dynamic Island when installed to the home screen. */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}

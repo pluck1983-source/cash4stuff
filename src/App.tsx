@@ -6,6 +6,7 @@ import { clearLocalState, emptyState } from './lib/storage';
 import { clearAllPhotos } from './lib/photos';
 import { SignInScreen } from './components/SignInScreen';
 import { SyncControl } from './components/SyncControl';
+import { Wordmark } from './components/Wordmark';
 import { DashboardView } from './views/Dashboard';
 import { PickupsView } from './views/Pickups';
 import { PickupDetailView } from './views/PickupDetail';
@@ -126,13 +127,28 @@ export default function App() {
     />
   );
 
+  // Spelled out on screen - a tooltip can't be read on a phone.
+  const syncProblem = sync.error && (sync.status === 'error' || sync.status === 'reconnect') && (
+    <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+      <strong>Not syncing with Google Drive.</strong> {sync.error} Your changes are kept on this device until it works.
+      <div className="mt-2">
+        <button
+          type="button"
+          className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-red-800 dark:border-red-800 dark:bg-red-900 dark:text-red-100"
+          onClick={() => void (sync.status === 'reconnect' ? sync.connect() : sync.syncNow())}
+        >
+          {sync.status === 'reconnect' ? 'Sign in again' : 'Retry'}
+        </button>
+      </div>
+    </div>
+  );
+
   if (isDesktop) {
     return (
       <div className="flex min-h-screen text-slate-900 dark:text-slate-100">
         <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <a href={routeHref({ name: 'dashboard' })} className="mb-6 flex items-center gap-2 text-lg font-semibold">
-            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-8 w-8" />
-            Cash4Stuff
+          <a href={routeHref({ name: 'dashboard' })} className="mb-6 flex items-center gap-2" aria-label="Wardrobe to Wallet - home">
+            <Wordmark className="text-xl" />
           </a>
           <nav className="flex flex-col gap-1">
             {NAV.map((n) => (
@@ -141,7 +157,7 @@ export default function App() {
                 href={n.href}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${
                   section === n.section
-                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300'
                     : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                 }`}
               >
@@ -155,7 +171,10 @@ export default function App() {
             {sync.accountEmail && <div className="truncate px-2 text-xs text-slate-500" title={sync.accountEmail}>{sync.accountEmail}</div>}
           </div>
         </aside>
-        <main className="min-w-0 flex-1 p-6 xl:p-8">{view}</main>
+        <main className="min-w-0 flex-1 p-6 xl:p-8">
+          {syncProblem}
+          {view}
+        </main>
       </div>
     );
   }
@@ -163,16 +182,18 @@ export default function App() {
   return (
     <div className="min-h-screen pb-20 text-slate-900 dark:text-slate-100">
       <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
-        <a href={routeHref({ name: 'dashboard' })} className="flex flex-1 items-center gap-2 font-semibold">
-          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-7 w-7" />
-          Cash4Stuff
+        <a href={routeHref({ name: 'dashboard' })} className="flex min-w-0 flex-1 items-center" aria-label="Wardrobe to Wallet - home">
+          <Wordmark className="text-xl" />
         </a>
         {syncControl}
-        <a href={routeHref({ name: 'settings' })} className={`rounded-lg p-1.5 ${section === 'settings' ? 'text-emerald-700' : 'text-slate-500'}`} aria-label="Settings">
+        <a href={routeHref({ name: 'settings' })} className={`rounded-lg p-1.5 ${section === 'settings' ? 'text-brand-700' : 'text-slate-500'}`} aria-label="Settings">
           <NavIcon>{NAV[NAV.length - 1].icon}</NavIcon>
         </a>
       </header>
-      <main className="p-4">{view}</main>
+      <main className="p-4">
+        {syncProblem}
+        {view}
+      </main>
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         {NAV.filter((n) => n.section !== 'settings').map((n) => (
           <a
@@ -180,14 +201,14 @@ export default function App() {
             href={n.href}
             className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${
               n.section === 'add'
-                ? 'text-emerald-700 dark:text-emerald-400'
+                ? 'text-brand-700 dark:text-brand-400'
                 : section === n.section
-                  ? 'text-emerald-700 dark:text-emerald-400'
+                  ? 'text-brand-700 dark:text-brand-400'
                   : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             {n.section === 'add' ? (
-              <span className="-mt-5 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg">
+              <span className="-mt-5 flex h-11 w-11 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg">
                 <NavIcon>{n.icon}</NavIcon>
               </span>
             ) : (

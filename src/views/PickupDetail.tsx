@@ -120,7 +120,7 @@ export function PickupDetailView({ state, actions, id }: { state: AppState; acti
                   </span>
                   <span className="flex items-center gap-2 tabular-nums">
                     {money(e.amount)}
-                    <button type="button" className="text-slate-400 hover:text-rose-600" aria-label="Remove cost" onClick={() => actions.deleteExpense(e.id)}>
+                    <button type="button" className="text-slate-400 hover:text-red-600" aria-label="Remove cost" onClick={() => actions.deleteExpense(e.id)}>
                       ✕
                     </button>
                   </span>

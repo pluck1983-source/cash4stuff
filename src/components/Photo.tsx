@@ -86,10 +86,10 @@ export function PhotoPicker({
           )}
         </button>
         <div className="flex flex-col justify-center gap-2">
-          <button type="button" className="text-left text-sm text-emerald-700 underline dark:text-emerald-400" onClick={() => cameraRef.current?.click()}>
+          <button type="button" className="text-left text-sm text-brand-700 underline dark:text-brand-400" onClick={() => cameraRef.current?.click()}>
             {preview ? 'Retake' : 'Camera'}
           </button>
-          <button type="button" className="text-left text-sm text-emerald-700 underline dark:text-emerald-400" onClick={() => libraryRef.current?.click()}>
+          <button type="button" className="text-left text-sm text-brand-700 underline dark:text-brand-400" onClick={() => libraryRef.current?.click()}>
             Choose from library
           </button>
           {preview && (
@@ -99,7 +99,7 @@ export function PhotoPicker({
           )}
         </div>
       </div>
-      {error && <p className="mt-1 text-sm text-rose-600">{error}</p>}
+      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
       <input
         ref={cameraRef}
         type="file"

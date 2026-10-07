@@ -1,5 +1,32 @@
 @import "tailwindcss";
 
+/* Wardrobe to Wallet: logo pink for actions and navigation, logo teal for money in / good news */
+@theme {
+  --color-brand-50: #fdf0f4;
+  --color-brand-100: #fbdde7;
+  --color-brand-200: #f7bccf;
+  --color-brand-300: #f293b1;
+  --color-brand-400: #ec6f95;
+  --color-brand-500: #e14f7d;
+  --color-brand-600: #c93766;
+  --color-brand-700: #a62a53;
+  --color-brand-800: #832445;
+  --color-brand-900: #66203a;
+  --color-brand-950: #3d0f20;
+  --color-emerald-50: #eef8f6;
+  --color-emerald-100: #d3efe9;
+  --color-emerald-200: #a9dfd4;
+  --color-emerald-300: #7dcbbb;
+  --color-emerald-400: #5dbba8;
+  --color-emerald-500: #3fa28f;
+  --color-emerald-600: #2e8676;
+  --color-emerald-700: #246b5f;
+  --color-emerald-800: #1f564d;
+  --color-emerald-900: #1c4740;
+  --color-emerald-950: #0c2a25;
+  --font-script: "Pacifico", "Brush Script MT", cursive;
+}
+
 :root {
   color-scheme: light dark;
   /* Chart roles (data-viz reference palette: series 1 blue, series 2 orange) */
@@ -25,12 +52,12 @@
 body {
   margin: 0;
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
-  background: #f8fafc;
+  background: #fdf4f5;
 }
 
 @media (prefers-color-scheme: dark) {
   body {
-    background: #020617;
+    background: #120a0e;
   }
 }
 

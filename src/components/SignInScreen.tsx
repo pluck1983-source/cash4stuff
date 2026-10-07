@@ -1,11 +1,14 @@
 import type { SyncStatus } from '../lib/sync/useCloudSync';
+import { Wordmark } from './Wordmark';
 
 export function SignInScreen({ status, error, onSignIn }: { status: SyncStatus; error: string | null; onSignIn: () => void }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 dark:bg-slate-950">
+    <div className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="mx-auto mb-4 h-16 w-16" />
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Cash4Stuff</h1>
+        <h1 className="text-3xl">
+          <Wordmark />
+        </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           Pickups, stock, sales and running costs. Sign in with Google to keep everything synced between your phone and computer.
         </p>
@@ -23,9 +26,9 @@ export function SignInScreen({ status, error, onSignIn }: { status: SyncStatus; 
           </svg>
           {status === 'syncing' ? 'Signing in…' : 'Sign in with Google'}
         </button>
-        {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <p className="mt-6 text-xs text-slate-500 dark:text-slate-400">
-          Everything is kept in a Cash4Stuff folder in the business owner's Google Drive. Helpers sign in with their own Google account once the owner has shared that folder with them.
+          Everything is kept in a Wardrobe to Wallet folder in the business owner's Google Drive. Helpers sign in with their own Google account once the owner has shared that folder with them.
         </p>
       </div>
     </div>

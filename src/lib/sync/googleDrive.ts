@@ -5,7 +5,7 @@ import { AuthRequiredError, type CloudProvider, type RemoteFileMeta } from './ty
  * full-page redirect to Google and back - no server, no popup, so it works
  * on an iPhone home-screen app).
  *
- * Data lives in an ordinary, visible "Cash4Stuff" folder: one JSON file
+ * Data lives in an ordinary, visible "Wardrobe to Wallet" folder: one JSON file
  * plus a "photos" subfolder with one JPEG per item photo. The business owner
  * signs in first, which creates the folder in their Drive, then shares it
  * (Editor) with anyone else who should use the app. Those people sign in
@@ -20,7 +20,7 @@ import { AuthRequiredError, type CloudProvider, type RemoteFileMeta } from './ty
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const SCOPE = 'openid email https://www.googleapis.com/auth/drive';
 const FILE_NAME = 'cash4stuff-data.json';
-const FOLDER_NAME = 'Cash4Stuff';
+const FOLDER_NAME = 'Wardrobe to Wallet';
 const PHOTOS_FOLDER_NAME = 'photos';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const TOKEN_KEY = 'cash4stuff-gdrive-token';
@@ -28,6 +28,14 @@ const TOKEN_KEY = 'cash4stuff-gdrive-token';
 const STATE_KEY = 'cash4stuff-gdrive-oauth-state';
 /** Set when a silent re-sign-in has been tried this session, so it isn't retried in a loop */
 const SILENT_TRIED_KEY = 'cash4stuff-gdrive-silent-tried';
+const SIGN_IN_ERROR_KEY = 'cash4stuff-gdrive-sign-in-error';
+
+/** A problem from the last Google sign-in, read once */
+export function takeSignInError(): string | null {
+  const message = sessionStorage.getItem(SIGN_IN_ERROR_KEY);
+  sessionStorage.removeItem(SIGN_IN_ERROR_KEY);
+  return message;
+}
 
 interface StoredToken {
   token: string;
@@ -71,11 +79,18 @@ function writeToken(token: StoredToken | null) {
 function consumeRedirectResult() {
   if (!window.location.hash.includes('state=')) return;
   const params = new URLSearchParams(window.location.hash.slice(1));
-  const expectedState = sessionStorage.getItem(STATE_KEY);
+  const expectedState = localStorage.getItem(STATE_KEY);
   if (!expectedState || params.get('state') !== expectedState) return;
-  sessionStorage.removeItem(STATE_KEY);
+  localStorage.removeItem(STATE_KEY);
   const token = params.get('access_token');
-  if (token) {
+  const error = params.get('error');
+  const granted = params.get('scope') ?? '';
+  if (error && error !== 'interaction_required' && error !== 'login_required' && error !== 'consent_required') {
+    sessionStorage.setItem(SIGN_IN_ERROR_KEY, error === 'access_denied' ? 'Google sign-in was cancelled or blocked. Check this Google account is added as a test user, then try again.' : `Google sign-in failed (${error}).`);
+  } else if (token && granted && !granted.includes('auth/drive')) {
+    // Google's consent screen lets people untick Drive access - without it nothing can sync.
+    sessionStorage.setItem(SIGN_IN_ERROR_KEY, 'Google Drive access was not allowed. Sign in again and tick the box to let Wardrobe to Wallet see and edit your Google Drive files.');
+  } else if (token) {
     writeToken({ token, expiresAt: Date.now() + Number(params.get('expires_in') ?? 3600) * 1000 });
     sessionStorage.removeItem(SILENT_TRIED_KEY);
   }
@@ -87,7 +102,7 @@ consumeRedirectResult();
 function redirectToGoogle(silent: boolean): Promise<never> {
   if (!CLIENT_ID) return Promise.reject(new Error('Google Drive sync is not configured for this build'));
   const state = crypto.randomUUID();
-  sessionStorage.setItem(STATE_KEY, state);
+  localStorage.setItem(STATE_KEY, state);
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: redirectUri(),
@@ -116,8 +131,27 @@ async function driveFetch(url: string, init: RequestInit = {}): Promise<Response
     writeToken(null);
     throw new AuthRequiredError();
   }
-  if (!response.ok) throw new Error(`Google Drive request failed (${response.status})`);
+  if (!response.ok) throw new Error(await driveErrorMessage(response));
   return response;
+}
+
+/** Turns Google's error body into something the person can act on */
+async function driveErrorMessage(response: Response): Promise<string> {
+  let reason = '';
+  let detail = '';
+  try {
+    const body = (await response.json()) as { error?: { message?: string; errors?: { reason?: string }[]; details?: { reason?: string }[] } };
+    reason = body.error?.errors?.[0]?.reason ?? body.error?.details?.[0]?.reason ?? '';
+    detail = body.error?.message ?? '';
+  } catch {
+    // Not JSON - fall back to the status code.
+  }
+  if (reason === 'accessNotConfigured' || reason === 'SERVICE_DISABLED' || /has not been used|is disabled/i.test(detail))
+    return 'The Google Drive API is switched off in the Google Cloud project. Turn it on (APIs & Services → Library → Google Drive API → Enable), wait a few minutes, then tap retry.';
+  if (reason === 'insufficientPermissions' || reason === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT' || /insufficient/i.test(detail))
+    return 'Google Drive access was not allowed. Sign out in Settings, sign in again and tick the box to let Wardrobe to Wallet see and edit your Google Drive files.';
+  if (response.status === 404) return 'The Wardrobe to Wallet data file could not be found in Google Drive - it may have been deleted or un-shared.';
+  return `Google Drive request failed (${response.status}${detail ? `: ${detail}` : ''})`;
 }
 
 /** Drive query string literal - escapes quotes/backslashes */

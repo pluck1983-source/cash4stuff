@@ -10,7 +10,7 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
   return (
     <a
       href={routeHref({ name: 'item', id: item.id })}
-      className="flex gap-3 rounded-xl border border-slate-200 bg-white p-2 hover:border-emerald-400 dark:border-slate-800 dark:bg-slate-900"
+      className="flex gap-3 rounded-xl border border-slate-200 bg-white p-2 hover:border-brand-400 dark:border-slate-800 dark:bg-slate-900"
     >
       <Photo id={item.photoId} alt={item.name} className="h-20 w-20 shrink-0 rounded-lg" />
       <div className="min-w-0 flex-1 py-0.5">

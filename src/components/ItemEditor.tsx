@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
-import type { AppState, ItemStatus, StorageLocation } from '../lib/types';
+import type { AppState, ItemGender, ItemStatus, StorageLocation } from '../lib/types';
+import { GENDER_LABELS, GENDER_OPTIONS } from '../lib/calc';
 import { parseNumber, shortDate } from '../lib/format';
 import { Chips, Field, Input, Select } from './ui';
 import { Photo, PhotoPicker } from './Photo';
@@ -9,6 +10,7 @@ export interface ItemDraft {
   name: string;
   category: string;
   subcategory: string;
+  gender: ItemGender;
   location: StorageLocation;
   listPrice: string;
   status: ItemStatus;
@@ -82,6 +84,18 @@ export function ItemEditor({ state, draft, onChange, showPickup = true }: { stat
       </Field>
 
       <div>
+        <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">For (optional - tap again to clear)</span>
+        <Chips
+          options={GENDER_OPTIONS.map((g) => GENDER_LABELS[g])}
+          value={GENDER_LABELS[draft.gender]}
+          onChange={(label) => {
+            const g = GENDER_OPTIONS.find((o) => GENDER_LABELS[o] === label) ?? '';
+            set({ gender: g === draft.gender ? '' : g });
+          }}
+        />
+      </div>
+
+      <div>
         <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Category</span>
         <Chips
           options={state.settings.categories}
@@ -89,7 +103,7 @@ export function ItemEditor({ state, draft, onChange, showPickup = true }: { stat
           onChange={(category) => set({ category, subcategory: category === draft.category ? draft.subcategory : '' })}
         />
         {subcategories.length > 0 && (
-          <div className="mt-2 border-l-2 border-emerald-200 pl-3 dark:border-emerald-900">
+          <div className="mt-2 border-l-2 border-brand-200 pl-3 dark:border-brand-900">
             <span className="mb-1 block text-xs text-slate-500">Type (optional - tap again to clear)</span>
             <Chips options={subcategories} value={draft.subcategory} onChange={(sub) => set({ subcategory: sub === draft.subcategory ? '' : sub })} />
           </div>

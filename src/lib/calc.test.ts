@@ -16,6 +16,7 @@ function item(over: Partial<Item> = {}): Item {
     name: 'Jeans',
     category: 'Jeans',
     subcategory: '',
+    gender: '',
     photoId: null,
     location: { area: 'Garage', rack: 'A', box: '3' },
     listPrice: 10,
@@ -149,12 +150,18 @@ describe('filterItems', () => {
   const state = stateWith({
     pickups: [pickup()],
     items: [
-      item({ id: 'a', name: 'Nike hoodie', category: 'Hoodies & sweats', location: { area: 'Garage', rack: 'B', box: '1' } }),
-      item({ id: 'b', name: 'Zara dress', category: 'Dresses', status: 'sold', soldPrice: 15, soldDate: '2026-03-12' }),
+      item({ id: 'a', name: 'Nike hoodie', category: 'Hoodies & sweats', gender: 'unisex', location: { area: 'Garage', rack: 'B', box: '1' } }),
+      item({ id: 'b', name: 'Zara dress', category: 'Dresses', gender: 'womens', status: 'sold', soldPrice: 15, soldDate: '2026-03-12' }),
       item({ id: 'c', name: 'Boots', category: 'Shoes', listPrice: 40, status: 'in_stock' }),
     ],
   });
   const ids = (f: Partial<typeof EMPTY_FILTER>) => filterItems(state, { ...EMPTY_FILTER, ...f }).map((i) => i.id);
+
+  it("filters by who it's for, with unisex counting for both", () => {
+    expect(ids({ gender: 'womens' })).toEqual(['a', 'b']);
+    expect(ids({ gender: 'mens' })).toEqual(['a']);
+    expect(ids({ gender: 'unisex' })).toEqual(['a']);
+  });
 
   it('filters by text across name and pickup reference', () => {
     expect(ids({ text: 'nike' })).toEqual(['a']);

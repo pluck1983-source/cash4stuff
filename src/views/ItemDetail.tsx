@@ -15,6 +15,7 @@ function toDraft(item: Item): ItemDraft {
     name: item.name,
     category: item.category,
     subcategory: item.subcategory,
+    gender: item.gender,
     location: item.location,
     listPrice: item.listPrice === null ? '' : String(item.listPrice),
     status: item.status,
@@ -59,6 +60,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       name: draft.name.trim(),
       category: draft.category,
       subcategory: draft.subcategory,
+      gender: draft.gender,
       photoId,
       location: { area: draft.location.area, rack: draft.location.rack.trim(), box: draft.location.box.trim() },
       listPrice: draftListPrice(draft),
@@ -81,6 +83,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
     try {
       const updated = await buildFromDraft();
       actions.updateItem({ ...updated, ...sale, status: 'sold' }, item.photoId);
+      rememberChannel(sale.salesChannel);
       setSelling(false);
     } finally {
       setSaving(false);
@@ -118,9 +121,21 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       </p>
 
       {!isSold && item.status !== 'written_off' && (
-        <Button variant="primary" className="mb-4 w-full py-4 text-lg" onClick={() => setSelling(true)}>
-          Sold it - enter final price
-        </Button>
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          {item.listPrice !== null && (
+            <Button
+              variant="primary"
+              className="py-4 text-base"
+              disabled={saving}
+              onClick={() => void confirmSale({ soldPrice: item.listPrice, soldDate: todayIso(), salesChannel: lastChannel(state), saleCosts: 0 })}
+            >
+              Sold at {money(item.listPrice)}
+            </Button>
+          )}
+          <Button variant={item.listPrice === null ? 'primary' : 'secondary'} className={`py-4 text-base ${item.listPrice === null ? 'col-span-2' : ''}`} onClick={() => setSelling(true)}>
+            {item.listPrice === null ? 'Sold it - enter price' : 'Sold - adjust price'}
+          </Button>
+        </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-5">
@@ -142,6 +157,27 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
   );
 }
 
+const CHANNEL_KEY = 'cash4stuff-last-sales-channel';
+
+/** Where the last sale on this device happened - one-tap sales use it */
+function lastChannel(state: AppState): string {
+  try {
+    const last = localStorage.getItem(CHANNEL_KEY);
+    if (last && state.settings.salesChannels.includes(last)) return last;
+  } catch {
+    // fall through
+  }
+  return state.settings.salesChannels[0] ?? '';
+}
+
+function rememberChannel(channel: string) {
+  try {
+    localStorage.setItem(CHANNEL_KEY, channel);
+  } catch {
+    // Remembering is a convenience only.
+  }
+}
+
 /** What it sold for, and the way back if it was a mistake */
 function SoldCard({ item, buyCost, onEdit, actions }: { item: Item; buyCost: number | undefined; onEdit: () => void; actions: AppActions }) {
   const list = item.listPrice;
@@ -161,7 +197,7 @@ function SoldCard({ item, buyCost, onEdit, actions }: { item: Item; buyCost: num
       )}
       {profit !== null && (
         <p className="mt-1 text-sm">
-          Profit on this item ≈ <strong className={profit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600'}>{money(profit)}</strong>
+          Profit on this item ≈ <strong className={profit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600'}>{money(profit)}</strong>
         </p>
       )}
       <div className="mt-3 flex gap-2">
@@ -200,7 +236,7 @@ function SaleDialog({
 }) {
   const [price, setPrice] = useState(item.soldPrice !== null ? String(item.soldPrice) : '');
   const [date, setDate] = useState(item.soldDate ?? todayIso());
-  const [channel, setChannel] = useState(item.salesChannel || state.settings.salesChannels[0] || '');
+  const [channel, setChannel] = useState(item.salesChannel || lastChannel(state));
   const [costs, setCosts] = useState(item.saleCosts ? String(item.saleCosts) : '');
   const sold = parseNumber(price);
   const fees = parseNumber(costs) ?? 0;

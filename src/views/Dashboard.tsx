@@ -179,7 +179,7 @@ function MonthTable({ state, months, compact = false }: { state: AppState; month
       label: 'Profit',
       value: (t) => money(t.netProfit),
       total: money(sumOf((t) => t.netProfit)),
-      tone: (t) => (t.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'),
+      tone: (t) => (t.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'),
     },
     { label: 'Pickups', value: (t) => (t.pickups ? `${t.pickups} · ${kg(t.kgBought)}` : '-'), wideOnly: true },
     { label: 'Added', value: (t) => String(t.itemsAdded), total: String(sumOf((t) => t.itemsAdded)), wideOnly: true },
@@ -283,7 +283,7 @@ function PickupTable({ state, limit }: { state: AppState; limit?: number }) {
               </td>
               <td className="px-2 py-2 text-right tabular-nums">{money(s.totalCost)}</td>
               <td className="px-2 py-2 text-right tabular-nums">{money(s.salesRevenue + s.otherIncome)}</td>
-              <td className={`whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <td className={`whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {money(s.realisedProfit)}
                 <div className="text-xs font-normal text-slate-500">{percent(s.roi)}</div>
               </td>
@@ -349,7 +349,7 @@ function Attention({ state }: { state: AppState }) {
         </li>
       ))}
       <li>
-        <a href={routeHref({ name: 'stock' })} className="text-sm text-emerald-700 underline dark:text-emerald-400">
+        <a href={routeHref({ name: 'stock' })} className="text-sm text-brand-700 underline dark:text-brand-400">
           Go to stock →
         </a>
       </li>
@@ -418,11 +418,11 @@ function QuickDashboard({ state }: { state: AppState }) {
         ))}
       </div>
 
-      <Card title="Monthly figures" action={<a className="text-sm text-emerald-700 underline dark:text-emerald-400" href={routeHref({ name: 'finance' })}>Finance</a>}>
+      <Card title="Monthly figures" action={<a className="text-sm text-brand-700 underline dark:text-brand-400" href={routeHref({ name: 'finance' })}>Finance</a>}>
         <MonthTable state={state} months={6} compact />
       </Card>
 
-      <Card title="Latest pickups" action={<a className="text-sm text-emerald-700 underline dark:text-emerald-400" href={routeHref({ name: 'pickups' })}>All</a>}>
+      <Card title="Latest pickups" action={<a className="text-sm text-brand-700 underline dark:text-brand-400" href={routeHref({ name: 'pickups' })}>All</a>}>
         <PickupTable state={state} limit={3} />
       </Card>
       <Card title="Needs attention">

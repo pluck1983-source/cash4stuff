@@ -4,7 +4,7 @@ import { exportStateAsJson, importStateFromJson } from '../storage';
 import { getPhoto, markPhotoSynced, setRemotePhotoFetcher, unsyncedPhotoIds } from '../photos';
 import { AuthRequiredError, type CloudProvider, type RemoteFileMeta } from './types';
 import { decideSync, hashState, mergeStates } from './syncEngine';
-import { googleDriveProvider } from './googleDrive';
+import { googleDriveProvider, takeSignInError } from './googleDrive';
 
 export type SyncStatus =
   | 'unconfigured' // built without a client ID - sign-in and sync hidden, data stays on this device
@@ -65,7 +65,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
   const [accountEmail, setAccountEmail] = useState<string | null>(() => readMeta()?.accountEmail ?? null);
   const [dataOwner, setDataOwner] = useState<string | null>(() => readMeta()?.dataOwner ?? null);
   const [pendingPhotos, setPendingPhotos] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => takeSignInError());
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -131,19 +131,19 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
         if (meta.syncedRemoteVersion !== null) {
           // Never silently start a second copy if the shared one has gone missing.
           throw new Error(
-            `Can't find the Cash4Stuff data in ${provider.label} any more - it may have been unshared or moved to the bin. Changes are kept on this device.`,
+            `Can't find the Wardrobe to Wallet data in ${provider.label} any more - it may have been unshared or moved to the bin. Changes are kept on this device.`,
           );
         }
         const who = email ?? 'this Google account';
         const startNew = window.confirm(
-          `No Cash4Stuff data is in ${who}'s ${provider.label}, or shared with it.\n\n` +
-            `OK - start a new Cash4Stuff folder in this account's ${provider.label} (do this if you run the business).\n` +
-            `Cancel - someone else keeps the data: ask them to share their Cash4Stuff folder with ${who}, then sign in again.`,
+          `No Wardrobe to Wallet data is in ${who}'s ${provider.label}, or shared with it.\n\n` +
+            `OK - start a new Wardrobe to Wallet folder in this account's ${provider.label} (do this if you run the business).\n` +
+            `Cancel - someone else keeps the data: ask them to share their Wardrobe to Wallet folder with ${who}, then sign in again.`,
         );
         if (!startNew) {
           writeMeta(null);
           setAccountEmail(null);
-          setError(`Ask the business owner to share their Cash4Stuff folder in Google Drive with ${who} (as Editor), then sign in again.`);
+          setError(`Ask the business owner to share their Wardrobe to Wallet folder in Google Drive with ${who} (as Editor), then sign in again.`);
           setStatus('off');
           return;
         }

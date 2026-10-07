@@ -3,10 +3,10 @@ import type { ButtonHTMLAttributes, ComponentProps, ReactNode, SelectHTMLAttribu
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300 dark:disabled:bg-emerald-900',
+  primary: 'bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-300 dark:disabled:bg-brand-900',
   secondary:
     'border border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200',
-  danger: 'border border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950',
+  danger: 'border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950',
   ghost: 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
 };
 
@@ -46,7 +46,7 @@ export function Field({ label, hint, children, className = '' }: { label: string
 }
 
 const inputClass =
-  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
+  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
 
 /** Full width unless the caller sets a width (two width classes would fight) */
 function fieldClass(extra = ''): string {
@@ -80,7 +80,7 @@ export function Card({ children, className = '', title, action }: { children: Re
 }
 
 export function Stat({ label, value, sub, tone = 'default' }: { label: string; value: string; sub?: ReactNode; tone?: 'default' | 'good' | 'bad' }) {
-  const toneClass = tone === 'good' ? 'text-emerald-600 dark:text-emerald-400' : tone === 'bad' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-slate-50';
+  const toneClass = tone === 'good' ? 'text-emerald-600 dark:text-emerald-400' : tone === 'bad' ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-50';
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
       <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
@@ -118,7 +118,7 @@ export function Chips({ options, value, onChange }: { options: string[]; value: 
           onClick={() => onChange(o)}
           className={`rounded-full border px-3 py-1.5 text-sm ${
             o === value
-              ? 'border-emerald-600 bg-emerald-600 text-white'
+              ? 'border-brand-600 bg-brand-600 text-white'
               : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
           }`}
         >
@@ -133,7 +133,7 @@ const statusStyles: Record<string, string> = {
   in_stock: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   listed: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
   sold: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-  written_off: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  written_off: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
 };
 
 export const STATUS_LABELS: Record<string, string> = {

@@ -1,4 +1,4 @@
-import type { AppState, Item, ItemStatus, Pickup, Settings, WeightRounding } from './types';
+import type { AppState, Item, ItemGender, ItemStatus, Pickup, Settings, WeightRounding } from './types';
 
 /** Rounds money to whole pence so totals don't drift with floating point */
 export function pence(value: number): number {
@@ -299,6 +299,7 @@ export interface ItemFilter {
   category: string;
   /** Empty = any; only meaningful with a category */
   subcategory: string;
+  gender: ItemGender;
   status: ItemStatus | 'held' | '';
   pickupId: string;
   area: string;
@@ -312,6 +313,7 @@ export const EMPTY_FILTER: ItemFilter = {
   text: '',
   category: '',
   subcategory: '',
+  gender: '',
   status: '',
   pickupId: '',
   area: '',
@@ -327,6 +329,8 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   return state.items.filter((i) => {
     if (filter.category && i.category !== filter.category) return false;
     if (filter.category && filter.subcategory && i.subcategory !== filter.subcategory) return false;
+    // Unisex items show up when looking for either men's or women's.
+    if (filter.gender && i.gender !== filter.gender && !(i.gender === 'unisex' && filter.gender !== 'unisex')) return false;
     if (filter.status === 'held' ? !isHeld(i) : filter.status && i.status !== filter.status) return false;
     if (filter.pickupId && i.pickupId !== filter.pickupId) return false;
     if (filter.area && i.location.area !== filter.area) return false;
@@ -337,7 +341,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
     if (filter.maxPrice !== null && (price ?? 0) > filter.maxPrice) return false;
     if (text) {
       const pickup = i.pickupId ? pickupsById.get(i.pickupId) : undefined;
-      const haystack = [i.name, i.category, i.subcategory, i.notes, i.salesChannel, i.location.area, i.location.rack, i.location.box, pickup?.reference ?? '']
+      const haystack = [i.name, i.category, i.subcategory, GENDER_LABELS[i.gender], i.notes, i.salesChannel, i.location.area, i.location.rack, i.location.box, pickup?.reference ?? '']
         .join(' ')
         .toLowerCase();
       if (!haystack.includes(text)) return false;
@@ -346,9 +350,12 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   });
 }
 
-/** "Tops · T-shirts", or just "Tops" */
-export function categoryLabel(item: Pick<Item, 'category' | 'subcategory'>): string {
-  return item.subcategory ? `${item.category} · ${item.subcategory}` : item.category;
+export const GENDER_LABELS: Record<ItemGender, string> = { '': '', mens: "Men's", womens: "Women's", unisex: 'Unisex' };
+export const GENDER_OPTIONS: ItemGender[] = ['mens', 'womens', 'unisex'];
+
+/** "Women's · Tops · T-shirts", or just "Tops" */
+export function categoryLabel(item: Pick<Item, 'category' | 'subcategory'> & { gender?: ItemGender }): string {
+  return [item.gender ? GENDER_LABELS[item.gender] : '', item.category, item.subcategory].filter(Boolean).join(' · ');
 }
 
 export function locationLabel(loc: { area: string; rack: string; box: string }): string {

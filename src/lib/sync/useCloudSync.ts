@@ -20,6 +20,8 @@ interface SyncMeta {
   syncedRemoteVersion: string | null;
   lastSyncedAt: string | null;
   accountEmail: string | null;
+  /** Whose Drive the shared data file lives in */
+  dataOwner: string | null;
   /** Photo ids whose cloud copy has already been removed */
   purgedPhotoIds: string[];
 }
@@ -38,7 +40,7 @@ function readMeta(): SyncMeta | null {
     const raw = localStorage.getItem(META_KEY);
     const parsed = raw ? (JSON.parse(raw) as SyncMeta) : null;
     if (parsed?.providerId !== provider.id) return null;
-    return { ...parsed, accountEmail: parsed.accountEmail ?? null, purgedPhotoIds: parsed.purgedPhotoIds ?? [] };
+    return { ...parsed, accountEmail: parsed.accountEmail ?? null, dataOwner: parsed.dataOwner ?? null, purgedPhotoIds: parsed.purgedPhotoIds ?? [] };
   } catch {
     return null;
   }
@@ -61,6 +63,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
   });
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => readMeta()?.lastSyncedAt ?? null);
   const [accountEmail, setAccountEmail] = useState<string | null>(() => readMeta()?.accountEmail ?? null);
+  const [dataOwner, setDataOwner] = useState<string | null>(() => readMeta()?.dataOwner ?? null);
   const [pendingPhotos, setPendingPhotos] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,12 +120,37 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
     setStatus('syncing');
     try {
       await provider.signIn(false);
-      if (!meta.accountEmail) {
-        const email = await provider.getAccountEmail();
+      let email = meta.accountEmail;
+      if (!email) {
+        email = await provider.getAccountEmail();
         updateMeta({ accountEmail: email });
         setAccountEmail(email);
       }
       const remote = await provider.getMeta();
+      if (!remote) {
+        if (meta.syncedRemoteVersion !== null) {
+          // Never silently start a second copy if the shared one has gone missing.
+          throw new Error(
+            `Can't find the Cash4Stuff data in ${provider.label} any more - it may have been unshared or moved to the bin. Changes are kept on this device.`,
+          );
+        }
+        const who = email ?? 'this Google account';
+        const startNew = window.confirm(
+          `No Cash4Stuff data is in ${who}'s ${provider.label}, or shared with it.\n\n` +
+            `OK - start a new Cash4Stuff folder in this account's ${provider.label} (do this if you run the business).\n` +
+            `Cancel - someone else keeps the data: ask them to share their Cash4Stuff folder with ${who}, then sign in again.`,
+        );
+        if (!startNew) {
+          writeMeta(null);
+          setAccountEmail(null);
+          setError(`Ask the business owner to share their Cash4Stuff folder in Google Drive with ${who} (as Editor), then sign in again.`);
+          setStatus('off');
+          return;
+        }
+      } else if (remote.owner !== undefined && remote.owner !== meta.dataOwner) {
+        updateMeta({ dataOwner: remote.owner });
+        setDataOwner(remote.owner);
+      }
       const local = stateRef.current;
       const action = decideSync({
         localHash: hashState(local),
@@ -176,6 +204,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
 
   const connect = useCallback(async () => {
     setStatus('syncing');
+    setError(null);
     // Record the intent before signing in: the sign-in leaves the page for
     // Google's and comes back, and the reload needs to know to finish syncing.
     // An existing record is kept so reconnecting after a lapsed sign-in
@@ -187,6 +216,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
         syncedRemoteVersion: null,
         lastSyncedAt: null,
         accountEmail: null,
+        dataOwner: null,
         purgedPhotoIds: [],
       });
     }
@@ -209,6 +239,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
     authLapsed.current = false;
     setLastSyncedAt(null);
     setAccountEmail(null);
+    setDataOwner(null);
     setError(null);
     setStatus('off');
   }, []);
@@ -255,6 +286,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
     status,
     lastSyncedAt,
     accountEmail,
+    dataOwner,
     pendingPhotos,
     error,
     providerLabel: provider.label,

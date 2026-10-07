@@ -11,6 +11,8 @@ export interface RemoteFileMeta {
   modifiedTime: string;
   /** Opaque marker that changes on every write (e.g. an eTag) */
   version: string;
+  /** Whose storage the file lives in, when the provider knows */
+  owner?: string | null;
 }
 
 export interface CloudProvider {

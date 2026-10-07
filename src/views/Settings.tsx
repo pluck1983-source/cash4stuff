@@ -27,6 +27,7 @@ export function SettingsView({
   actions,
   replaceState,
   accountEmail,
+  dataOwner,
   signedIn,
   onSignOut,
 }: {
@@ -34,6 +35,7 @@ export function SettingsView({
   actions: AppActions;
   replaceState: (s: AppState) => void;
   accountEmail: string | null;
+  dataOwner: string | null;
   signedIn: boolean;
   onSignOut: (wipeDevice: boolean) => void;
 }) {
@@ -142,7 +144,12 @@ export function SettingsView({
       {signedIn && (
         <Card title="Account">
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-            Signed in{accountEmail ? <> as <strong>{accountEmail}</strong></> : ''}. Data syncs to a private app folder in that Google Drive.
+            Signed in{accountEmail ? <> as <strong>{accountEmail}</strong></> : ''}. Data syncs to the <strong>Cash4Stuff</strong> folder in{' '}
+            {dataOwner && dataOwner !== accountEmail ? <strong>{dataOwner}</strong> : 'this account'}'s Google Drive.
+          </p>
+          <p className="mb-3 text-sm text-slate-500">
+            To let someone else use the app: in Google Drive, share the Cash4Stuff folder with their Google account as <strong>Editor</strong>. Their address also
+            has to be added as a test user on the app's Google sign-in setup. Unshare the folder to remove their access.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button

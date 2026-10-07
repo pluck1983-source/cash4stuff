@@ -102,6 +102,7 @@ export default function App() {
           actions={actions}
           replaceState={replaceState}
           accountEmail={sync.accountEmail}
+          dataOwner={sync.dataOwner}
           signedIn={sync.status !== 'unconfigured'}
           onSignOut={(wipe) => void signOut(wipe)}
         />

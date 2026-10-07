@@ -52,9 +52,18 @@ export function mergeStates(local: AppState, remote: AppState): AppState {
   };
 }
 
+/** JSON with object keys sorted, so the same data always gives the same text whatever order fields were set in */
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  );
+}
+
 /** Fingerprint used to tell whether data changed. Not for security. */
 export function hashState(state: AppState): string {
-  const text = JSON.stringify(state);
+  const text = stableStringify(state);
   // 53-bit string hash (cyrb53).
   let h1 = 0xdeadbeef;
   let h2 = 0x41c6ce57;

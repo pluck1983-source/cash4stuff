@@ -52,23 +52,33 @@ offline.
 
 ## Sign-in, sync and where the data lives
 
-Signing in with Google is how you get into the app. There's no server of
+Everyone signs in with their **own** Google account. There's no server of
 our own: the browser talks straight to Google.
 
-- Data is saved as `cash4stuff-data.json`, and each photo as
-  `photo-<id>.jpg`, in the Drive *app data* folder - a hidden folder only
-  this app can see. The app is only granted that folder (`drive.appdata`)
-  plus your email address (to show who's signed in), not the rest of your
-  Drive.
+- The data lives in a normal **Cash4Stuff** folder in the business owner's
+  Google Drive: `cash4stuff-data.json` plus a `photos` subfolder with one
+  `photo-<id>.jpg` per item. The owner can open it in Drive like any other
+  folder.
+- Anyone else who uses the app (e.g. a helper) gets access when the owner
+  **shares that folder with them as Editor** in Google Drive, and loses it
+  when the owner unshares it. Nobody needs anyone else's password.
+- The first time an account signs in and no Cash4Stuff data is in its Drive
+  or shared with it, the app asks before creating a new folder. The owner
+  says OK; a helper says Cancel, gets the owner to share the folder, and
+  signs in again. If the shared data later disappears (unshared or
+  binned), the app shows an error rather than quietly starting a second
+  copy.
 - Every device keeps its own copy, so it works offline and syncs when back
   online. Edits upload a couple of seconds after you stop; opening or
   switching back to the app pulls in changes from other devices, and an
   open desktop checks every minute.
-- Phone and desktop can both be used at the same time: the two copies are
-  merged record by record (the newer edit of a record wins, and deletions
-  stick), so you're never asked to pick one whole copy over the other.
-- Photos taken on the phone upload in the background; the desktop
-  downloads each one the first time it's shown.
+- Several people/devices can edit at once: copies are merged record by
+  record (the newer edit of a record wins, and deletions stick), so nobody
+  is asked to pick one whole copy over another.
+- Photos upload in the background; other devices download each one the
+  first time it's shown. Photos a helper uploads into the owner's folder
+  are owned by the helper's Google account (that's how Drive sharing works
+  for personal accounts) and count against the helper's storage.
 - Google's sign-in lasts an hour. When it runs out the app briefly bounces
   to Google and straight back (once per session); if Google needs you to
   act, a **Reconnect Google** button appears. Edits made meanwhile stay on
@@ -82,26 +92,39 @@ our own: the browser talks straight to Google.
 ### One-time Google setup
 
 The app uses the same Google Cloud project and OAuth client as the Tax
-Planner (same `pluck1983-source.github.io` origin), so there's one step:
+Planner (same `pluck1983-source.github.io` origin). In
+[console.cloud.google.com](https://console.cloud.google.com), open that
+project, then:
 
-1. In [console.cloud.google.com](https://console.cloud.google.com), open the
-   Tax Planner project → **Google Auth Platform → Clients** → the web
-   client → under *Authorized redirect URIs* add
-   `https://pluck1983-source.github.io/cash4stuff/` and save.
-2. Make sure GitHub Pages is set to deploy from **GitHub Actions**
-   (repo Settings → Pages); the workflow tries to enable it itself.
+1. **Google Auth Platform → Data access**: add the scope
+   `https://www.googleapis.com/auth/drive` (Google Drive API, "See, edit,
+   create and delete all of your Google Drive files").
+2. **Google Auth Platform → Audience → Test users**: add the Gmail address
+   of **every person** who will sign in (the owner and any helpers). While
+   the app is in *Testing*, nobody else can sign in at all.
+3. **Google Auth Platform → Clients** → the web client → *Authorized
+   redirect URIs*: add `https://pluck1983-source.github.io/cash4stuff/`.
+4. Repo Settings → Pages → Source: **GitHub Actions** (the workflow tries to
+   enable this itself).
 
-Google's consent screen will show the Tax Planner project's app name. To
-give Cash4Stuff its own name/consent screen, create a separate project
-following the same steps as the Tax Planner README (enable Drive API,
-External consent screen with your address as a test user, a Web client with
-the origin and redirect above) and put its client ID in `.env` as
-`VITE_GOOGLE_CLIENT_ID`. Note the Drive app-data folder belongs to the
-Cloud project, so switching projects later starts with an empty cloud copy
-(each device's local copy then merges into it on next sign-in).
+Then:
 
-While the consent screen is in *Testing*, only the Google accounts listed
-as test users can sign in - that's the access control for the cloud data.
+1. **The owner** opens the app, signs in with their Google account and
+   presses **OK** to start a new Cash4Stuff folder.
+2. In Google Drive, the owner right-clicks the **Cash4Stuff** folder →
+   *Share* → adds each helper's Gmail as **Editor**.
+3. **Each helper** opens the app and signs in with their own Google account.
+
+Expect Google to show "Google hasn't verified this app" on sign-in
+(*Advanced → Go to …*): full Drive access is a restricted scope, and
+verifying it is only needed to open the app to the public, not for a
+handful of listed test users. Testing-mode sign-ins may also need
+re-approving every 7 days.
+
+To give Cash4Stuff its own consent-screen name instead of "Tax Planner",
+create a separate Cloud project with the same steps (plus enabling the
+Google Drive API) and put its client ID in `.env` as
+`VITE_GOOGLE_CLIENT_ID`. The data stays in the Drive folder either way.
 
 ## Development
 

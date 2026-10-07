@@ -25,7 +25,7 @@ export function SignInScreen({ status, error, onSignIn }: { status: SyncStatus; 
         </button>
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
         <p className="mt-6 text-xs text-slate-500 dark:text-slate-400">
-          Your data is stored in a private app folder in your own Google Drive. This app can't see anything else in your Drive.
+          Everything is kept in a Cash4Stuff folder in the business owner's Google Drive. Helpers sign in with their own Google account once the owner has shared that folder with them.
         </p>
       </div>
     </div>

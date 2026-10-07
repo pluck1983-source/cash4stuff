@@ -54,6 +54,14 @@ describe('mergeStates', () => {
   });
 });
 
+describe('hashState', () => {
+  it('ignores the order fields were set in', () => {
+    const p = pickup('a', '2026-01-01');
+    const reordered = Object.fromEntries(Object.entries(p).reverse()) as unknown as Pickup;
+    expect(hashState(withPickups([reordered]))).toBe(hashState(withPickups([p])));
+  });
+});
+
 describe('decideSync', () => {
   const base = { localHash: 'h1', remoteVersion: '5', syncedHash: 'h1', syncedRemoteVersion: '5' };
   it('pushes when there is no cloud copy yet', () => {

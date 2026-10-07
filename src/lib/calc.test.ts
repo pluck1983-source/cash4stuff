@@ -77,7 +77,7 @@ describe('pickupStats', () => {
         item({ listPrice: null, status: 'in_stock' }),
         item({ pickupId: 'other', status: 'sold', soldPrice: 100, soldDate: '2026-03-21' }),
       ],
-      expenses: [{ id: 'e1', date: '2026-03-10', category: 'Fuel', description: '', amount: 5, pickupId: 'p1', updatedAt: T }],
+      expenses: [{ id: 'e1', date: '2026-03-10', category: 'Fuel', description: '', amount: 5, pickupId: 'p1', recurringId: null, updatedAt: T }],
     });
     const s = pickupStats(state, p);
     expect(s.stockCost).toBe(15);
@@ -102,8 +102,8 @@ describe('totals', () => {
       item({ pickupId: 'p2', status: 'sold', soldPrice: 9, soldDate: '2025-12-20' }),
     ],
     expenses: [
-      { id: 'e1', date: '2026-03-01', category: 'Rent', description: '', amount: 50, pickupId: null, updatedAt: T },
-      { id: 'e2', date: '2025-11-01', category: 'Fuel', description: '', amount: 10, pickupId: null, updatedAt: T },
+      { id: 'e1', date: '2026-03-01', category: 'Rent', description: '', amount: 50, pickupId: null, recurringId: null, updatedAt: T },
+      { id: 'e2', date: '2025-11-01', category: 'Fuel', description: '', amount: 10, pickupId: null, recurringId: null, updatedAt: T },
     ],
     otherIncome: [{ id: 'o1', date: '2026-03-02', description: 'Bulk lot', amount: 5, pickupId: null, updatedAt: T }],
   });

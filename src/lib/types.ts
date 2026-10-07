@@ -108,6 +108,29 @@ export interface Expense {
   amount: number;
   /** Optionally tie a cost (e.g. fuel for the trip) to a pickup so it counts against that pickup's profit */
   pickupId: string | null;
+  /** Set when the cost was posted automatically by a repeating cost */
+  recurringId: string | null;
+  updatedAt: string;
+}
+
+export type RecurringFrequency = 'weekly' | 'monthly';
+
+/** A cost that repeats (rent, storage unit) - one Expense is posted per period up to today */
+export interface RecurringCost {
+  id: string;
+  category: string;
+  description: string;
+  /** Normal amount per week/month */
+  amount: number;
+  frequency: RecurringFrequency;
+  /** ISO date of the first payment; later ones fall on the same weekday / day of the month */
+  startDate: string;
+  /** Last date a payment can fall on, null = until stopped */
+  endDate: string | null;
+  /** Discounted amount for the first introPeriods payments (e.g. first 8 weeks half price) */
+  introAmount: number | null;
+  introPeriods: number;
+  pickupId: string | null;
   updatedAt: string;
 }
 
@@ -141,6 +164,7 @@ export interface AppState {
   expenses: Expense[];
   otherIncome: OtherIncome[];
   employments: Employment[];
+  recurring: RecurringCost[];
   /**
    * Record id -> when it was deleted. Kept so a device that still has the
    * record doesn't bring it back when the two copies are merged.

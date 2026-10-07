@@ -14,8 +14,9 @@ import { StockView } from './views/Stock';
 import { ItemDetailView } from './views/ItemDetail';
 import { MoneyView } from './views/Money';
 import { SettingsView } from './views/Settings';
+import { FinanceView } from './views/Finance';
 
-type Section = 'dashboard' | 'pickups' | 'add' | 'stock' | 'money' | 'settings';
+type Section = 'dashboard' | 'pickups' | 'add' | 'stock' | 'money' | 'finance' | 'settings';
 
 function sectionOf(route: Route): Section {
   switch (route.name) {
@@ -36,6 +37,7 @@ const NAV: { section: Section; label: string; href: string; icon: ReactNode }[] 
   { section: 'add', label: 'Add', href: routeHref({ name: 'add-item', pickupId: null }), icon: <path d="M12 5v14M5 12h14" /> },
   { section: 'stock', label: 'Stock', href: routeHref({ name: 'stock' }), icon: <path d="M4 7h16M4 12h16M4 17h16M8 4v16" /> },
   { section: 'money', label: 'Costs', href: routeHref({ name: 'money' }), icon: <path d="M17 6.5A5 5 0 0 0 8 9v8M6 13h7M6 17h11" /> },
+  { section: 'finance', label: 'Finance', href: routeHref({ name: 'finance' }), icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /> },
   { section: 'settings', label: 'Settings', href: routeHref({ name: 'settings' }), icon: <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM19 12l2-1-1-3-2 .3-1.4-1.4L17 5l-3-1-1 2h-2L10 4 7 5l.4 2-1.5 1.4L4 8l-1 3 2 1v0l-2 1 1 3 2-.3 1.4 1.4L7 19l3 1 1-2h2l1 2 3-1-.4-2 1.5-1.4 1.9.4 1-3-2-1Z" /> },
 ];
 
@@ -94,6 +96,9 @@ export default function App() {
       break;
     case 'money':
       view = <MoneyView state={state} actions={actions} />;
+      break;
+    case 'finance':
+      view = <FinanceView state={state} actions={actions} />;
       break;
     case 'settings':
       view = (
@@ -163,10 +168,13 @@ export default function App() {
           Cash4Stuff
         </a>
         {syncControl}
+        <a href={routeHref({ name: 'settings' })} className={`rounded-lg p-1.5 ${section === 'settings' ? 'text-emerald-700' : 'text-slate-500'}`} aria-label="Settings">
+          <NavIcon>{NAV[NAV.length - 1].icon}</NavIcon>
+        </a>
       </header>
       <main className="p-4">{view}</main>
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        {NAV.map((n) => (
+        {NAV.filter((n) => n.section !== 'settings').map((n) => (
           <a
             key={n.section}
             href={n.href}

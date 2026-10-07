@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AppState, Item } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { itemCostMap } from '../lib/calc';
+import { itemCostMap, originalListPrice, pence } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
 import { newId, todayIso } from '../lib/storage';
@@ -127,7 +127,9 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
           </Button>
         </Card>
 
-        <Card className="lg:col-span-2" title={isSold ? `Sold for ${money(item.soldPrice)}` : 'Record sale'}>
+        <div className="space-y-4 lg:col-span-2">
+        <PriceCard item={item} actions={actions} />
+        <Card title={isSold ? `Sold for ${money(item.soldPrice)}` : 'Record sale'}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Sold for (£)">
@@ -144,6 +146,11 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
             <Field label="Fees / postage you paid (£)" hint="Selling-site fees or postage on this sale - comes off the profit">
               <Input type="number" inputMode="decimal" step="0.01" min="0" value={saleCosts} onChange={(e) => setSaleCosts(e.target.value)} placeholder="0.00" />
             </Field>
+            {item.listPrice !== null && item.listPrice > 0 && parseNumber(soldPrice) !== null && (
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                {Math.round(((parseNumber(soldPrice) ?? 0) / item.listPrice) * 100)}% of the {money(item.listPrice)} asking price
+              </p>
+            )}
             {buyCost !== undefined && parseNumber(soldPrice) !== null && (
               <p className="text-sm text-slate-600 dark:text-slate-300">
                 Profit on this item ≈ <strong>{money((parseNumber(soldPrice) ?? 0) - (parseNumber(saleCosts) ?? 0) - buyCost)}</strong>
@@ -162,7 +169,46 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
             )}
           </div>
         </Card>
+        </div>
       </div>
     </div>
+  );
+}
+
+/** Asking price, its history, and one-tap reductions */
+function PriceCard({ item, actions }: { item: Item; actions: AppActions }) {
+  const original = originalListPrice(item);
+  const reduceTo = (price: number) => actions.updateItem({ ...item, listPrice: Math.max(0, pence(price)) });
+  const current = item.listPrice;
+  return (
+    <Card title="Asking price">
+      <div className="flex items-baseline gap-2">
+        <span className="text-2xl font-semibold tabular-nums">{money(current)}</span>
+        {original !== null && current !== null && original !== current && (
+          <span className="text-sm text-slate-500">
+            was {money(original)} ({Math.round(((original - current) / original) * 100)}% off)
+          </span>
+        )}
+      </div>
+      {current !== null && item.status !== 'sold' && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button onClick={() => reduceTo(current * 0.9)}>-10%</Button>
+          <Button onClick={() => reduceTo(current * 0.8)}>-20%</Button>
+          <Button onClick={() => reduceTo(current - 1)}>-£1</Button>
+          <Button onClick={() => reduceTo(current - 5)}>-£5</Button>
+        </div>
+      )}
+      {item.priceHistory.length > 1 && (
+        <ul className="mt-3 space-y-0.5 text-xs text-slate-500">
+          {[...item.priceHistory].reverse().map((p) => (
+            <li key={p.date + p.price} className="flex justify-between">
+              <span>{shortDate(p.date)}</span>
+              <span className="tabular-nums">{money(p.price)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-3 text-xs text-slate-500">Change the price in Details, or use the buttons. Each change is kept so you can see what it sold for against what it was listed at.</p>
+    </Card>
   );
 }

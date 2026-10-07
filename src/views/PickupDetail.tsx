@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AppState } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { pickupStats } from '../lib/calc';
@@ -6,11 +6,14 @@ import { kg, money, parseNumber, percent, shortDate } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
 import { Button, Card, Empty, Input, LinkButton, PageHeader, Select, Stat } from '../components/ui';
 import { ItemCard } from '../components/ItemCard';
-import { PickupForm } from './Pickups';
+import { OPEN_QUICK_ENTRY_KEY, PickupForm } from './Pickups';
+import { QuickEntry } from '../components/QuickEntry';
 
 export function PickupDetailView({ state, actions, id }: { state: AppState; actions: AppActions; id: string }) {
   const pickup = state.pickups.find((p) => p.id === id);
   const [editing, setEditing] = useState(false);
+  const [quickEntry, setQuickEntry] = useState(() => sessionStorage.getItem(OPEN_QUICK_ENTRY_KEY) === id);
+  useEffect(() => sessionStorage.removeItem(OPEN_QUICK_ENTRY_KEY), []);
   const [costCategory, setCostCategory] = useState('Fuel');
   const [costAmount, setCostAmount] = useState('');
 
@@ -80,9 +83,15 @@ export function PickupDetailView({ state, actions, id }: { state: AppState; acti
         />
       </div>
 
-      <LinkButton href={routeHref({ name: 'add-item', pickupId: pickup.id })} variant="primary" className="mb-4 w-full py-3 text-base">
-        + Add item to this pickup
-      </LinkButton>
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+        <LinkButton href={routeHref({ name: 'add-item', pickupId: pickup.id })} variant="primary" className="flex-1 py-3 text-base">
+          + Add item with photo
+        </LinkButton>
+        <Button onClick={() => setQuickEntry((v) => !v)} className="py-3" variant={quickEntry ? 'primary' : 'secondary'}>
+          {quickEntry ? 'Close quick entry' : 'Quick entry (existing stock)'}
+        </Button>
+      </div>
+      {quickEntry && <QuickEntry state={state} actions={actions} pickup={pickup} />}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">

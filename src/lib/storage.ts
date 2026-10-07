@@ -1,4 +1,4 @@
-import type { AppState, Expense, Item, OtherIncome, Pickup, Settings } from './types';
+import type { AppState, Employment, Expense, Item, OtherIncome, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
 
 const STORAGE_KEY = 'cash4stuff-state-v1';
 
@@ -40,17 +40,49 @@ export const DEFAULT_SETTINGS: Settings = {
     'Other stock purchase',
     'Other',
   ],
+  expenseTaxBoxes: {
+    Fuel: 'travel',
+    Storage: 'premises',
+    Rent: 'premises',
+    'Shipping bags & packaging': 'goods',
+    Postage: 'office',
+    Equipment: 'other',
+    'Cleaning & repairs': 'repairs',
+    'Selling fees': 'other',
+    Advertising: 'advertising',
+    'Other stock purchase': 'goods',
+    Other: 'other',
+  },
 };
+
+const TAX_BOXES: TaxExpenseBox[] = ['goods', 'travel', 'staff', 'premises', 'repairs', 'office', 'advertising', 'interest', 'financial', 'professional', 'other', 'not_allowable'];
+
+function taxBoxes(value: unknown): Record<string, TaxExpenseBox> {
+  if (typeof value !== 'object' || value === null) return { ...DEFAULT_SETTINGS.expenseTaxBoxes };
+  const result: Record<string, TaxExpenseBox> = {};
+  for (const [k, v] of Object.entries(value)) if (TAX_BOXES.includes(v as TaxExpenseBox)) result[k] = v as TaxExpenseBox;
+  return result;
+}
+
+function priceHistory(value: unknown, listPrice: number | null, createdAt: string): PricePoint[] {
+  const points = records(value)
+    .filter((p) => typeof p.price === 'number' && typeof p.date === 'string')
+    .map((p) => ({ date: p.date as string, price: p.price as number }));
+  // Older data had no history - start it from the current price.
+  if (points.length === 0 && listPrice !== null) return [{ date: createdAt.slice(0, 10), price: listPrice }];
+  return points;
+}
 
 export function emptyState(): AppState {
   return {
     version: 1,
-    settings: { ...DEFAULT_SETTINGS },
+    settings: { ...DEFAULT_SETTINGS, expenseTaxBoxes: { ...DEFAULT_SETTINGS.expenseTaxBoxes } },
     settingsUpdatedAt: EPOCH,
     pickups: [],
     items: [],
     expenses: [],
     otherIncome: [],
+    employments: [],
     tombstones: {},
     deletedPhotoIds: [],
   };
@@ -137,6 +169,7 @@ export function normaliseState(raw: unknown): AppState {
     storageAreas: strList(s.storageAreas, DEFAULT_SETTINGS.storageAreas),
     salesChannels: strList(s.salesChannels, DEFAULT_SETTINGS.salesChannels),
     expenseCategories: strList(s.expenseCategories, DEFAULT_SETTINGS.expenseCategories),
+    expenseTaxBoxes: taxBoxes(s.expenseTaxBoxes),
   };
   const now = new Date().toISOString();
   const pickups: Pickup[] = records(r.pickups).map((p) => ({
@@ -152,6 +185,8 @@ export function normaliseState(raw: unknown): AppState {
   const items: Item[] = records(r.items).map((i) => {
     const loc = (typeof i.location === 'object' && i.location !== null ? i.location : {}) as Record<string, unknown>;
     const status = i.status;
+    const listPrice = numOrNull(i.listPrice);
+    const createdAt = str(i.createdAt, now);
     return {
       id: str(i.id) || newId(),
       pickupId: typeof i.pickupId === 'string' ? i.pickupId : null,
@@ -159,14 +194,15 @@ export function normaliseState(raw: unknown): AppState {
       category: str(i.category, 'Other'),
       photoId: typeof i.photoId === 'string' ? i.photoId : null,
       location: { area: str(loc.area), rack: str(loc.rack), box: str(loc.box) },
-      listPrice: numOrNull(i.listPrice),
+      listPrice,
+      priceHistory: priceHistory(i.priceHistory, listPrice, createdAt),
       status: status === 'listed' || status === 'sold' || status === 'written_off' ? status : 'in_stock',
       soldPrice: numOrNull(i.soldPrice),
       soldDate: typeof i.soldDate === 'string' ? i.soldDate : null,
       salesChannel: str(i.salesChannel),
       saleCosts: num(i.saleCosts),
       notes: str(i.notes),
-      createdAt: str(i.createdAt, now),
+      createdAt,
       updatedAt: str(i.updatedAt, EPOCH),
     };
   });
@@ -187,6 +223,14 @@ export function normaliseState(raw: unknown): AppState {
     pickupId: typeof o.pickupId === 'string' ? o.pickupId : null,
     updatedAt: str(o.updatedAt, EPOCH),
   }));
+  const employments: Employment[] = records(r.employments).map((e) => ({
+    id: str(e.id) || newId(),
+    taxYear: str(e.taxYear),
+    employer: str(e.employer),
+    grossPay: num(e.grossPay),
+    taxPaid: num(e.taxPaid),
+    updatedAt: str(e.updatedAt, EPOCH),
+  }));
   return {
     version: 1,
     settings,
@@ -195,6 +239,7 @@ export function normaliseState(raw: unknown): AppState {
     items,
     expenses,
     otherIncome,
+    employments,
     tombstones: tombstones(r.tombstones),
     deletedPhotoIds: strList(r.deletedPhotoIds, []),
   };

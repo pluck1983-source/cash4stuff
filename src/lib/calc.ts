@@ -157,6 +157,12 @@ export interface Totals {
   pickups: number;
   kgBought: number;
   averageSalePrice: number | null;
+  /** Asking price (at the time of sale) of the items sold in the period that had one */
+  soldListValue: number;
+  /** What those same items actually sold for */
+  soldAgainstListValue: number;
+  /** Sold price as a share of asking price, e.g. 0.85 = sold for 85% of list on average; null if nothing to compare */
+  soldVsList: number | null;
   /** Current snapshot - not limited to the period */
   heldItems: number;
   listedItems: number;
@@ -179,6 +185,9 @@ export function totals(state: AppState, period: Period = ALL_TIME): Totals {
   const totalIncome = pence(salesIncome + otherIncome);
   const held = state.items.filter(isHeld);
   const perItemCost = itemCostMap(state);
+  const compared = soldInPeriod.filter((i) => i.listPrice !== null && i.listPrice > 0);
+  const soldListValue = pence(sum(compared.map((i) => i.listPrice ?? 0)));
+  const soldAgainstListValue = pence(sum(compared.map((i) => i.soldPrice ?? 0)));
   return {
     stockCost,
     runningCosts,
@@ -193,6 +202,9 @@ export function totals(state: AppState, period: Period = ALL_TIME): Totals {
     pickups: pickups.length,
     kgBought: sum(pickups.map((p) => p.weightKg)),
     averageSalePrice: soldInPeriod.length ? pence(salesIncome / soldInPeriod.length) : null,
+    soldListValue,
+    soldAgainstListValue,
+    soldVsList: soldListValue > 0 ? soldAgainstListValue / soldListValue : null,
     heldItems: held.length,
     listedItems: held.filter((i) => i.status === 'listed').length,
     unpricedItems: held.filter((i) => i.listPrice === null).length,
@@ -223,6 +235,7 @@ export interface MonthPoint {
   stockCost: number;
   runningCosts: number;
   profit: number;
+  totals: Totals;
 }
 
 /** Month-by-month income and costs for the last `count` months, oldest first */
@@ -239,6 +252,7 @@ export function monthlySeries(state: AppState, count = 12, today = new Date()): 
       stockCost: t.stockCost,
       runningCosts: pence(t.runningCosts + t.saleCosts),
       profit: t.netProfit,
+      totals: t,
     });
   }
   return points;
@@ -265,6 +279,18 @@ export function salesByCategory(state: AppState, period: Period = ALL_TIME): { c
   return [...byCat.entries()]
     .map(([category, v]) => ({ category, amount: pence(v.amount), count: v.count }))
     .sort((a, b) => b.amount - a.amount);
+}
+
+/** First asking price the item had (before any reductions) */
+export function originalListPrice(item: Item): number | null {
+  return item.priceHistory[0]?.price ?? item.listPrice;
+}
+
+/** How much the asking price has dropped since first listed, as a share (0.2 = 20% off) */
+export function priceDrop(item: Item): number | null {
+  const original = originalListPrice(item);
+  if (!original || item.listPrice === null) return null;
+  return (original - item.listPrice) / original;
 }
 
 export interface ItemFilter {

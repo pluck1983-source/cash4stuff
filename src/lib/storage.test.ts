@@ -23,3 +23,10 @@ describe('itemsToCsv', () => {
     expect(itemsToCsv(s, s.items).split('\n')[1].startsWith('"Jeans, ""501""",Jeans')).toBe(true);
   });
 });
+
+describe('price history', () => {
+  it('starts history from the current price for older data', () => {
+    const s = normaliseState({ items: [{ id: 'i1', listPrice: 12, createdAt: '2026-02-03T10:00:00.000Z' }] });
+    expect(s.items[0].priceHistory).toEqual([{ date: '2026-02-03', price: 12 }]);
+  });
+});

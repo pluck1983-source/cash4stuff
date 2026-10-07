@@ -7,6 +7,9 @@ import { navigate, routeHref } from '../lib/router';
 import { todayIso } from '../lib/storage';
 import { Button, Card, Empty, Field, Input, PageHeader, TextArea } from '../components/ui';
 
+/** Tells the pickup page to open with quick entry showing */
+export const OPEN_QUICK_ENTRY_KEY = 'cash4stuff-open-quick-entry';
+
 export function PickupForm({
   state,
   initial,
@@ -15,7 +18,7 @@ export function PickupForm({
 }: {
   state: AppState;
   initial?: Pickup;
-  onSave: (data: Omit<Pickup, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onSave: (data: Omit<Pickup, 'id' | 'createdAt' | 'updatedAt'>, next: 'photo' | 'quick') => void;
   onCancel: () => void;
 }) {
   const { settings } = state;
@@ -35,20 +38,21 @@ export function PickupForm({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
+        const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
         onSave({
           date,
           reference: reference.trim() || `Pickup ${shortDate(date)}`,
           weightKg,
           costOverride: overrideValue,
           notes: notes.trim(),
-        });
+        }, submitter?.value === 'quick' ? 'quick' : 'photo');
       }}
     >
       <Field label="Who / where" hint="A name, an address or just a reference - whatever helps you recognise it later">
         <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Sarah, 12 High St" autoFocus={!initial} />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Date">
+        <Field label="Date" hint={!initial ? 'Back-date it for stock you already have' : undefined}>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </Field>
         <Field label="Weight (kg)">
@@ -64,16 +68,21 @@ export function PickupForm({
           <>Enter the weight to see what to pay ({money(settings.costPerKg)}/kg, rounded to {settings.weightStepKg} kg)</>
         )}
       </div>
-      <Field label="Actually paid (optional)" hint="Only if you paid something other than the calculated amount">
+      <Field label="Actually paid (optional)" hint="If you paid something other than the calculated amount - or, for stock you already had, what you paid when you don't know the weight">
         <Input type="number" inputMode="decimal" step="0.01" min="0" value={override} onChange={(e) => setOverride(e.target.value)} placeholder={money(calculated)} />
       </Field>
       <Field label="Notes">
         <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
-      <div className="flex gap-2">
-        <Button type="submit" variant="primary" className="flex-1">
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" variant="primary" className="flex-1" value="photo">
           {initial ? 'Save pickup' : 'Save & add items'}
         </Button>
+        {!initial && (
+          <Button type="submit" value="quick" className="flex-1">
+            Save & quick entry (existing stock)
+          </Button>
+        )}
         <Button onClick={onCancel}>Cancel</Button>
       </div>
     </form>
@@ -101,10 +110,15 @@ export function PickupsView({ state, actions }: { state: AppState; actions: AppA
           <PickupForm
             state={state}
             onCancel={() => setAdding(false)}
-            onSave={(data) => {
+            onSave={(data, next) => {
               const pickup = actions.addPickup(data);
               setAdding(false);
-              navigate({ name: 'add-item', pickupId: pickup.id });
+              if (next === 'quick') {
+                sessionStorage.setItem(OPEN_QUICK_ENTRY_KEY, pickup.id);
+                navigate({ name: 'pickup', id: pickup.id });
+              } else {
+                navigate({ name: 'add-item', pickupId: pickup.id });
+              }
             }}
           />
         </Card>

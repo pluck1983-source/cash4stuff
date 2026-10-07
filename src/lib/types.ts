@@ -14,6 +14,29 @@ export interface Settings {
   /** Where things sell (e.g. "Vinted", "eBay", "Depop") */
   salesChannels: string[];
   expenseCategories: string[];
+  /** Which self-assessment expense box each cost type goes in (Finance tab) */
+  expenseTaxBoxes: Record<string, TaxExpenseBox>;
+}
+
+/** Allowable-expense headings on the HMRC self-employment pages (SA103) */
+export type TaxExpenseBox =
+  | 'goods'
+  | 'travel'
+  | 'staff'
+  | 'premises'
+  | 'repairs'
+  | 'office'
+  | 'advertising'
+  | 'interest'
+  | 'financial'
+  | 'professional'
+  | 'other'
+  | 'not_allowable';
+
+export interface PricePoint {
+  /** ISO date the item was (re)priced */
+  date: string;
+  price: number;
 }
 
 export interface Pickup {
@@ -52,8 +75,10 @@ export interface Item {
   /** Key of the compressed photo in the photo store, if one was taken */
   photoId: string | null;
   location: StorageLocation;
-  /** Asking price, null if not yet priced */
+  /** Current asking price, null if not yet priced */
   listPrice: number | null;
+  /** Every asking price it has had, oldest first - so reductions and sold-vs-listed can be tracked */
+  priceHistory: PricePoint[];
   /** Listed = live on a selling site; in_stock = stored but not live yet */
   status: ItemStatus;
   soldPrice: number | null;
@@ -88,6 +113,17 @@ export interface OtherIncome {
   updatedAt: string;
 }
 
+/** Pay and tax from a job (P60/P45 figures), for the tax estimate on the Finance tab */
+export interface Employment {
+  id: string;
+  /** UK tax year id, e.g. "2025-26" */
+  taxYear: string;
+  employer: string;
+  grossPay: number;
+  taxPaid: number;
+  updatedAt: string;
+}
+
 export interface AppState {
   version: 1;
   settings: Settings;
@@ -96,6 +132,7 @@ export interface AppState {
   items: Item[];
   expenses: Expense[];
   otherIncome: OtherIncome[];
+  employments: Employment[];
   /**
    * Record id -> when it was deleted. Kept so a device that still has the
    * record doesn't bring it back when the two copies are merged.

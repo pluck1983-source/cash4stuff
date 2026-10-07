@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppState, Item } from '../lib/types';
-import { EMPTY_FILTER, filterItems, locationLabel, type ItemFilter } from '../lib/calc';
+import { EMPTY_FILTER, filterItems, locationLabel, priceDrop, type ItemFilter } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { routeHref, useIsDesktop } from '../lib/router';
 import { downloadText, itemsToCsv, todayIso } from '../lib/storage';
@@ -217,8 +217,16 @@ export function StockView({ state }: { state: AppState }) {
                     <td className="p-2">
                       <StatusBadge status={i.status} />
                     </td>
-                    <td className="p-2 text-right tabular-nums">{money(i.listPrice)}</td>
-                    <td className="p-2 text-right tabular-nums">{i.status === 'sold' ? money(i.soldPrice) : '-'}</td>
+                    <td className="p-2 text-right tabular-nums">
+                      {money(i.listPrice)}
+                      {(priceDrop(i) ?? 0) > 0 && <div className="text-xs text-amber-600">↓ {Math.round((priceDrop(i) ?? 0) * 100)}%</div>}
+                    </td>
+                    <td className="p-2 text-right tabular-nums">
+                      {i.status === 'sold' ? money(i.soldPrice) : '-'}
+                      {i.status === 'sold' && i.listPrice ? (
+                        <div className="text-xs text-slate-500">{Math.round(((i.soldPrice ?? 0) / i.listPrice) * 100)}% of list</div>
+                      ) : null}
+                    </td>
                     <td className="p-2 text-slate-600 dark:text-slate-300">{i.status === 'sold' ? `${i.salesChannel} ${shortDate(i.soldDate)}` : '-'}</td>
                     <td className="p-2 text-slate-500">{shortDate(i.createdAt)}</td>
                   </tr>

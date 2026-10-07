@@ -1,5 +1,5 @@
 import { GENDER_LABELS } from './calc';
-import type { AppState, Employment, Expense, Item, OtherIncome, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
+import type { AppState, Employment, Expense, RecurringCost, Item, OtherIncome, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
 
 const STORAGE_KEY = 'cash4stuff-state-v1';
 
@@ -84,6 +84,7 @@ export function emptyState(): AppState {
     expenses: [],
     otherIncome: [],
     employments: [],
+    recurring: [],
     tombstones: {},
     deletedPhotoIds: [],
   };
@@ -251,7 +252,21 @@ export function normaliseState(raw: unknown): AppState {
     description: str(e.description),
     amount: num(e.amount),
     pickupId: typeof e.pickupId === 'string' ? e.pickupId : null,
+    recurringId: typeof e.recurringId === 'string' ? e.recurringId : null,
     updatedAt: str(e.updatedAt, EPOCH),
+  }));
+  const recurring: RecurringCost[] = records(r.recurring).map((c) => ({
+    id: str(c.id) || newId(),
+    category: str(c.category, 'Other'),
+    description: str(c.description),
+    amount: num(c.amount),
+    frequency: c.frequency === 'weekly' ? 'weekly' : 'monthly',
+    startDate: str(c.startDate, now.slice(0, 10)),
+    endDate: typeof c.endDate === 'string' && c.endDate ? c.endDate : null,
+    introAmount: numOrNull(c.introAmount),
+    introPeriods: Math.max(0, Math.floor(num(c.introPeriods))),
+    pickupId: typeof c.pickupId === 'string' ? c.pickupId : null,
+    updatedAt: str(c.updatedAt, EPOCH),
   }));
   const otherIncome: OtherIncome[] = records(r.otherIncome).map((o) => ({
     id: str(o.id) || newId(),
@@ -278,6 +293,7 @@ export function normaliseState(raw: unknown): AppState {
     expenses,
     otherIncome,
     employments,
+    recurring,
     tombstones: tombstones(r.tombstones),
     deletedPhotoIds: strList(r.deletedPhotoIds, []),
   };

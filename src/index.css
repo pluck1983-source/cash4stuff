@@ -80,3 +80,24 @@ textarea {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/*
+ * iPhone Safari gives date inputs a fixed native width that ignores the
+ * column they sit in, pushing the page wider than the screen (and the sticky
+ * header then stops short). Let them shrink like any other field.
+ */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  display: block;
+}
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+/* Nothing should ever make the page scroll sideways on a phone. */
+html,
+body {
+  overflow-x: clip;
+}

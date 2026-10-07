@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AppState, Employment, Expense, Item, OtherIncome, Pickup, Settings } from './types';
+import type { AppState, Employment, Expense, Item, OtherIncome, Pickup, RecurringCost, Settings } from './types';
+import { postDueRecurring } from './recurring';
 import { loadState, newId, saveState, todayIso } from './storage';
 
 type NewPickup = Omit<Pickup, 'id' | 'createdAt' | 'updatedAt'>;
 type NewItem = Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'priceHistory'>;
 type NewEmployment = Omit<Employment, 'id' | 'updatedAt'>;
-type NewExpense = Omit<Expense, 'id' | 'updatedAt'>;
+type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId'> & { recurringId?: string | null };
+type NewRecurring = Omit<RecurringCost, 'id' | 'updatedAt'>;
 type NewIncome = Omit<OtherIncome, 'id' | 'updatedAt'>;
 
 function stamp() {
@@ -26,8 +28,20 @@ export function useAppState() {
 
   const replaceState = useCallback((next: AppState) => setState(next), []);
 
+  // Post repeating costs (rent etc.) that have fallen due - on open, after any
+  // change (including a sync bringing in a new plan) and when the app comes back.
+  useEffect(() => {
+    const posted = postDueRecurring(state, todayIso());
+    if (posted !== state) setState(posted);
+  }, [state]);
+  useEffect(() => {
+    const onVisible = () => document.visibilityState === 'visible' && setState((s) => postDueRecurring(s, todayIso()));
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   const actions = useMemo(() => {
-    function upsert<K extends 'pickups' | 'items' | 'expenses' | 'otherIncome' | 'employments'>(key: K, record: AppState[K][number]) {
+    function upsert<K extends 'pickups' | 'items' | 'expenses' | 'otherIncome' | 'employments' | 'recurring'>(key: K, record: AppState[K][number]) {
       setState((s) => {
         const list = s[key] as AppState[K][number][];
         const exists = list.some((r) => r.id === record.id);
@@ -35,7 +49,7 @@ export function useAppState() {
       });
     }
 
-    function remove<K extends 'pickups' | 'items' | 'expenses' | 'otherIncome' | 'employments'>(key: K, id: string) {
+    function remove<K extends 'pickups' | 'items' | 'expenses' | 'otherIncome' | 'employments' | 'recurring'>(key: K, id: string) {
       setState((s) => ({
         ...s,
         [key]: (s[key] as { id: string }[]).filter((r) => r.id !== id),
@@ -99,7 +113,48 @@ export function useAppState() {
         }
       },
       saveExpense(data: NewExpense & { id?: string }) {
-        upsert('expenses', { ...data, id: data.id ?? newId(), updatedAt: stamp() });
+        upsert('expenses', { ...data, recurringId: data.recurringId ?? null, id: data.id ?? newId(), updatedAt: stamp() });
+      },
+      /**
+       * Saves a repeating cost. Payments already posted keep their amounts (they
+       * happened); ones now outside the start/end dates are removed, and any
+       * newly due are posted straight away.
+       */
+      saveRecurring(data: NewRecurring & { id?: string }) {
+        const now = stamp();
+        const plan: RecurringCost = { ...data, id: data.id ?? newId(), updatedAt: now };
+        setState((s) => {
+          const outside = s.expenses.filter(
+            (e) => e.recurringId === plan.id && (e.date < plan.startDate || (plan.endDate !== null && e.date > plan.endDate)),
+          );
+          const gone = new Set(outside.map((e) => e.id));
+          const tombstones = { ...s.tombstones };
+          for (const id of gone) tombstones[id] = now;
+          // A payment deleted by hand stays deleted, unless the plan now starts later and it's no longer in range anyway.
+          const exists = s.recurring.some((r) => r.id === plan.id);
+          return {
+            ...s,
+            recurring: exists ? s.recurring.map((r) => (r.id === plan.id ? plan : r)) : [...s.recurring, plan],
+            expenses: s.expenses.filter((e) => !gone.has(e.id)),
+            tombstones,
+          };
+        });
+      },
+      /** Stops a repeating cost; keepPosted leaves the payments already made in the costs list */
+      deleteRecurring(id: string, keepPosted: boolean) {
+        const now = stamp();
+        setState((s) => {
+          const posted = keepPosted ? [] : s.expenses.filter((e) => e.recurringId === id).map((e) => e.id);
+          const tombstones = { ...s.tombstones, [id]: now };
+          for (const pid of posted) tombstones[pid] = now;
+          return {
+            ...s,
+            recurring: s.recurring.filter((r) => r.id !== id),
+            // Kept payments become ordinary costs so nothing re-links them.
+            expenses: s.expenses.filter((e) => !posted.includes(e.id)).map((e) => (e.recurringId === id ? { ...e, recurringId: null, updatedAt: now } : e)),
+            tombstones,
+          };
+        });
       },
       deleteExpense(id: string) {
         remove('expenses', id);

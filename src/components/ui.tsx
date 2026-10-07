@@ -37,7 +37,7 @@ export function LinkButton({ href, variant = 'secondary', className = '', childr
 
 export function Field({ label, hint, children, className = '' }: { label: string; hint?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <label className={`block ${className}`}>
+    <label className={`block min-w-0 ${className}`}>
       <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{hint}</span>}
@@ -50,7 +50,7 @@ const inputClass =
 
 /** Full width unless the caller sets a width (two width classes would fight) */
 function fieldClass(extra = ''): string {
-  return `${inputClass} ${/(^|\s)w-/.test(extra) ? '' : 'w-full'} ${extra}`;
+  return `${inputClass} min-w-0 ${/(^|\s)w-/.test(extra) ? '' : 'w-full'} ${extra}`;
 }
 
 export function Input(props: ComponentProps<'input'>) {

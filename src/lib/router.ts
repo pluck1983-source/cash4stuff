@@ -14,6 +14,7 @@ export type Route =
   | { name: 'item'; id: string }
   | { name: 'money' }
   | { name: 'finance' }
+  | { name: 'admin' }
   | { name: 'settings' };
 
 export function parseRoute(hash: string): Route {
@@ -31,6 +32,8 @@ export function parseRoute(hash: string): Route {
       return { name: 'finance' };
     case 'settings':
       return { name: 'settings' };
+    case 'admin':
+      return { name: 'admin' };
     default:
       return { name: 'dashboard' };
   }
@@ -56,6 +59,8 @@ export function routeHref(route: Route): string {
       return '#/finance';
     case 'settings':
       return '#/settings';
+    case 'admin':
+      return '#/admin';
   }
 }
 

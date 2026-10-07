@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppState, Employment, Expense, Item, OtherIncome, Pickup, RecurringCost, Settings } from './types';
 import { postDueRecurring } from './recurring';
+import { applyListEdit, type ListEdit } from './lists';
 import { loadState, newId, saveState, todayIso } from './storage';
 
 type NewPickup = Omit<Pickup, 'id' | 'createdAt' | 'updatedAt'>;
@@ -173,6 +174,10 @@ export function useAppState() {
       },
       updateSettings(settings: Settings) {
         setState((s) => ({ ...s, settings, settingsUpdatedAt: stamp() }));
+      },
+      /** Admin tab: add/rename/delete/reorder a category or other list entry, carrying records with it */
+      editList(edit: ListEdit) {
+        setState((s) => applyListEdit(s, edit, stamp()));
       },
     };
   }, []);

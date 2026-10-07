@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppState, Item } from '../lib/types';
-import { EMPTY_FILTER, categoryLabel, filterItems, locationLabel, priceDrop, type ItemFilter } from '../lib/calc';
+import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, categoryLabel, filterItems, locationLabel, priceDrop, type ItemFilter } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { routeHref, useIsDesktop } from '../lib/router';
 import { downloadText, itemsToCsv, todayIso } from '../lib/storage';
@@ -105,6 +105,15 @@ export function StockView({ state }: { state: AppState }) {
             <option value="listed">Listed</option>
             <option value="sold">Sold</option>
             <option value="written_off">Written off</option>
+          </Select>
+          <Select value={filter.gender} onChange={(e) => setFilter({ gender: e.target.value as ItemFilter['gender'] })} aria-label="For">
+            <option value="">Men's, women's &amp; unisex</option>
+            {GENDER_OPTIONS.map((g) => (
+              <option key={g} value={g}>
+                {GENDER_LABELS[g]}
+                {g !== 'unisex' ? ' (+ unisex)' : ''}
+              </option>
+            ))}
           </Select>
           <Select value={filter.category} onChange={(e) => setFilter({ category: e.target.value, subcategory: '' })} aria-label="Category">
             <option value="">All categories</option>

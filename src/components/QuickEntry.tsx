@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import type { AppState, ItemStatus, Pickup } from '../lib/types';
+import type { AppState, ItemGender, ItemStatus, Pickup } from '../lib/types';
+import { GENDER_LABELS, GENDER_OPTIONS } from '../lib/calc';
 import type { AppActions } from '../lib/useAppState';
 import { money, parseNumber } from '../lib/format';
 import { todayIso } from '../lib/storage';
@@ -10,6 +11,7 @@ const KEY = 'cash4stuff-quick-entry-defaults';
 interface Defaults {
   category: string;
   subcategory?: string;
+  gender?: ItemGender;
   area: string;
   rack: string;
   box: string;
@@ -62,6 +64,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         pickupId: pickup.id,
         name: name.trim(),
         category: d.category,
+        gender: d.gender ?? '',
         subcategory: subs.includes(d.subcategory ?? '') ? (d.subcategory ?? '') : '',
         photoId: null,
         location: { area: d.area, rack: d.rack.trim(), box: d.box.trim() },
@@ -100,6 +103,14 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         }}
       >
         <Input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Item name" className="col-span-2" aria-label="Item name" />
+        <Select value={d.gender ?? ''} onChange={(e) => set({ gender: e.target.value as ItemGender })} aria-label="For">
+          <option value="">Anyone</option>
+          {GENDER_OPTIONS.map((g) => (
+            <option key={g} value={g}>
+              {GENDER_LABELS[g]}
+            </option>
+          ))}
+        </Select>
         <Select value={d.category} onChange={(e) => set({ category: e.target.value, subcategory: '' })} aria-label="Category">
           {state.settings.categories.map((c) => (
             <option key={c}>{c}</option>

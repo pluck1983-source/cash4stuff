@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AppState, StorageLocation } from '../lib/types';
+import type { AppState, ItemGender, StorageLocation } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { money } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
@@ -14,6 +14,7 @@ const LAST_KEY = 'cash4stuff-last-item-defaults';
 interface LastDefaults {
   category: string;
   subcategory?: string;
+  gender?: ItemGender;
   location: StorageLocation;
 }
 
@@ -33,6 +34,7 @@ function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
     name: '',
     category: last?.category ?? state.settings.categories[0] ?? 'Other',
     subcategory: last?.subcategory ?? '',
+    gender: last?.gender ?? '',
     location: last?.location ?? { area: state.settings.storageAreas[0] ?? '', rack: '', box: '' },
     listPrice: '',
     status: 'listed',
@@ -70,6 +72,7 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
         name: draft.name.trim(),
         category: draft.category,
         subcategory: draft.subcategory,
+        gender: draft.gender,
         photoId,
         location: { area: draft.location.area, rack: draft.location.rack.trim(), box: draft.location.box.trim() },
         listPrice,
@@ -81,7 +84,7 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
         saleCosts: 0,
         notes: draft.notes.trim(),
       });
-      localStorage.setItem(LAST_KEY, JSON.stringify({ category: draft.category, subcategory: draft.subcategory, location: draft.location } satisfies LastDefaults));
+      localStorage.setItem(LAST_KEY, JSON.stringify({ category: draft.category, subcategory: draft.subcategory, gender: draft.gender, location: draft.location } satisfies LastDefaults));
       if (another) {
         setAdded((a) => [{ name: draft.name.trim() || draft.category, price: listPrice }, ...a]);
         setDraft({ ...freshDraft(state, draft.pickupId), status: draft.status });

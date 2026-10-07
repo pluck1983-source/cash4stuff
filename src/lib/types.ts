@@ -66,6 +66,9 @@ export interface StorageLocation {
   box: string;
 }
 
+/** Who it's for - separate from category so "Tops" works for everyone */
+export type ItemGender = '' | 'mens' | 'womens' | 'unisex';
+
 export type ItemStatus = 'in_stock' | 'listed' | 'sold' | 'written_off';
 
 export interface Item {
@@ -76,6 +79,7 @@ export interface Item {
   category: string;
   /** Optional - empty when the category has no sub-categories or none was picked */
   subcategory: string;
+  gender: ItemGender;
   /** Key of the compressed photo in the photo store, if one was taken */
   photoId: string | null;
   location: StorageLocation;

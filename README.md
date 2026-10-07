@@ -37,8 +37,10 @@ offline.
   kept (type the new price when you drop it), the stock table
   shows reductions and what each sale got as a % of list, and the dashboard
   shows sold-vs-asking across all sales.
-- **Selling** - open an item (search or filter for it) and tap **Sold it -
-  enter final price**. It asks for the final selling price (left blank on
+- **Selling** - open an item and tap **Sold at £X** if it went for the asking
+  price (one tap: today, the last site you sold on, no fees), or **Sold -
+  adjust price**, which
+  asks for the final selling price (left blank on
   purpose, so the asking price is never recorded by mistake), the date,
   where, and any fees/postage, then **Confirm sale**.
 - **Categories** - your own list in Settings, one per line, with optional

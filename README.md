@@ -95,9 +95,8 @@ Everyone signs in with their **own** Google account. There's no server of
 our own: the browser talks straight to Google.
 
 - The data lives in a normal **Wardrobe to Wallet** folder in the business owner's
-  (folders made before the rename are called Cash4Stuff - rename them freely,
-  the app finds its data by file name, not folder name)
-  Google Drive: `cash4stuff-data.json` plus a `photos` subfolder with one
+  Google Drive (folders made before the rename are called Cash4Stuff - rename
+  them freely, the app finds its data by file name, not folder name): `cash4stuff-data.json` plus a `photos` subfolder with one
   `photo-<id>.jpg` per item. The owner can open it in Drive like any other
   folder.
 - Anyone else who uses the app (e.g. a helper) gets access when the owner

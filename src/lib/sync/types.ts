@@ -22,12 +22,13 @@ export interface CloudProvider {
   /** False when the app was built without this provider's client ID */
   isConfigured(): boolean;
   /**
-   * Gets an access token. interactive=false tries to reuse an existing
-   * sign-in without prompting, and rejects with AuthRequiredError if the user
-   * has to act. interactive=true may navigate away to the provider's sign-in
-   * page and back, in which case it never resolves.
+   * Gets an access token. interactive=true navigates away to the provider's
+   * sign-in page and back, so it never resolves. Otherwise it reuses a stored
+   * token, or - only when mayRedirect - makes one silent round trip to renew
+   * it (that reloads the page, so only when nothing could be half-typed), and
+   * rejects with AuthRequiredError if the user has to act.
    */
-  signIn(interactive: boolean): Promise<void>;
+  signIn(interactive: boolean, mayRedirect?: boolean): Promise<void>;
   signOut(): Promise<void>;
   getMeta(): Promise<RemoteFileMeta | null>;
   download(meta: RemoteFileMeta): Promise<string>;

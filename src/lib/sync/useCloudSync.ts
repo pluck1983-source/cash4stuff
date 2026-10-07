@@ -109,7 +109,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
     }
   }, []);
 
-  const sync = useCallback(async () => {
+  const sync = useCallback(async (onStart = false) => {
     const meta = readMeta();
     if (!meta || authLapsed.current) return;
     if (running.current) {
@@ -119,7 +119,9 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
     running.current = true;
     setStatus('syncing');
     try {
-      await provider.signIn(false);
+      // Renewing an expired sign-in leaves the page, so only when the app opens -
+      // otherwise a half-typed entry would be wiped. Later, show Reconnect instead.
+      await provider.signIn(false, onStart);
       let email = meta.accountEmail;
       if (!email) {
         email = await provider.getAccountEmail();
@@ -187,6 +189,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
           setStatus('off');
         } else {
           authLapsed.current = true;
+          setError("Your Google sign-in has run out. Tap Sign in again to carry on syncing - nothing you've entered is lost.");
           setStatus('reconnect');
         }
       } else {
@@ -246,7 +249,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
 
   // Sync once on load if this device was signed in before.
   useEffect(() => {
-    if (readMeta()) void sync();
+    if (readMeta()) void sync(true);
   }, [sync]);
 
   // Push edits shortly after they stop, rather than on every keystroke.
@@ -258,8 +261,12 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
 
   // Pick up changes made on another device when coming back to the app, or coming back online.
   useEffect(() => {
+    // Back after a while counts as opening the app: safe to renew the sign-in.
+    // A quick switch away (to check a price) must not reload a half-typed form.
+    let hiddenAt = 0;
     function onVisible() {
-      if (document.visibilityState === 'visible' && readMeta()) void sync();
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+      else if (readMeta()) void sync(hiddenAt > 0 && Date.now() - hiddenAt > 10 * 60_000);
     }
     function onOnline() {
       if (readMeta()) void sync();

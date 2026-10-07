@@ -29,6 +29,7 @@ const STATE_KEY = 'cash4stuff-gdrive-oauth-state';
 /** Set when a silent re-sign-in has been tried this session, so it isn't retried in a loop */
 const SILENT_TRIED_KEY = 'cash4stuff-gdrive-silent-tried';
 const SIGN_IN_ERROR_KEY = 'cash4stuff-gdrive-sign-in-error';
+const SILENT_RETRY_MS = 5 * 60_000;
 
 /** A problem from the last Google sign-in, read once */
 export function takeSignInError(): string | null {
@@ -92,7 +93,7 @@ function consumeRedirectResult() {
     sessionStorage.setItem(SIGN_IN_ERROR_KEY, 'Google Drive access was not allowed. Sign in again and tick the box to let Wardrobe to Wallet see and edit your Google Drive files.');
   } else if (token) {
     writeToken({ token, expiresAt: Date.now() + Number(params.get('expires_in') ?? 3600) * 1000 });
-    sessionStorage.removeItem(SILENT_TRIED_KEY);
+    localStorage.removeItem(SILENT_TRIED_KEY);
   }
   window.history.replaceState(null, '', window.location.pathname + window.location.search);
 }
@@ -232,14 +233,17 @@ export const googleDriveProvider: CloudProvider = {
 
   hasToken: () => readToken() !== null,
 
-  async signIn(interactive) {
+  async signIn(interactive, mayRedirect = false) {
     if (interactive) return redirectToGoogle(false);
     if (readToken()) return;
     // Tokens only last an hour, so a returning visit usually needs a fresh
-    // one. Try one silent round trip per session while online; if Google
-    // wants the user to act, it comes back without a token and we stop here.
-    if (navigator.onLine && !sessionStorage.getItem(SILENT_TRIED_KEY)) {
-      sessionStorage.setItem(SILENT_TRIED_KEY, '1');
+    // one. The silent round trip reloads the page, so it's only allowed when
+    // the app starts (never mid-typing), and at most once every few minutes -
+    // remembered in localStorage because iPhone home-screen apps can lose
+    // sessionStorage on the way back from Google, which would loop forever.
+    const lastTry = Number(localStorage.getItem(SILENT_TRIED_KEY) ?? 0);
+    if (mayRedirect && navigator.onLine && Date.now() - lastTry > SILENT_RETRY_MS) {
+      localStorage.setItem(SILENT_TRIED_KEY, String(Date.now()));
       return redirectToGoogle(true);
     }
     throw new AuthRequiredError();

@@ -1,4 +1,4 @@
-import type { AppState, Expense, Item, OtherIncome, Pickup, Settings } from './types';
+import type { AppState, Employment, Expense, Item, OtherIncome, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
 
 const STORAGE_KEY = 'cash4stuff-state-v1';
 
@@ -8,13 +8,9 @@ export const DEFAULT_SETTINGS: Settings = {
   weightRounding: 'nearest',
   categories: [
     'Tops',
-    'T-shirts',
-    'Shirts',
     'Jumpers & knitwear',
-    'Hoodies & sweats',
     'Coats & jackets',
-    'Jeans',
-    'Trousers',
+    'Jeans & trousers',
     'Shorts',
     'Dresses',
     'Skirts',
@@ -25,6 +21,10 @@ export const DEFAULT_SETTINGS: Settings = {
     'Kids',
     'Other',
   ],
+  subcategories: {
+    Tops: ['T-shirts', 'Shirts & blouses', 'Vests', 'Hoodies & sweats'],
+    'Jeans & trousers': ['Jeans', 'Trousers', 'Joggers'],
+  },
   storageAreas: ['Garage', 'Spare room', 'Storage unit'],
   salesChannels: ['Vinted', 'eBay', 'Depop', 'Facebook Marketplace', 'In person'],
   expenseCategories: [
@@ -40,17 +40,49 @@ export const DEFAULT_SETTINGS: Settings = {
     'Other stock purchase',
     'Other',
   ],
+  expenseTaxBoxes: {
+    Fuel: 'travel',
+    Storage: 'premises',
+    Rent: 'premises',
+    'Shipping bags & packaging': 'goods',
+    Postage: 'office',
+    Equipment: 'other',
+    'Cleaning & repairs': 'repairs',
+    'Selling fees': 'other',
+    Advertising: 'advertising',
+    'Other stock purchase': 'goods',
+    Other: 'other',
+  },
 };
+
+const TAX_BOXES: TaxExpenseBox[] = ['goods', 'travel', 'staff', 'premises', 'repairs', 'office', 'advertising', 'interest', 'financial', 'professional', 'other', 'not_allowable'];
+
+function taxBoxes(value: unknown): Record<string, TaxExpenseBox> {
+  if (typeof value !== 'object' || value === null) return { ...DEFAULT_SETTINGS.expenseTaxBoxes };
+  const result: Record<string, TaxExpenseBox> = {};
+  for (const [k, v] of Object.entries(value)) if (TAX_BOXES.includes(v as TaxExpenseBox)) result[k] = v as TaxExpenseBox;
+  return result;
+}
+
+function priceHistory(value: unknown, listPrice: number | null, createdAt: string): PricePoint[] {
+  const points = records(value)
+    .filter((p) => typeof p.price === 'number' && typeof p.date === 'string')
+    .map((p) => ({ date: p.date as string, price: p.price as number }));
+  // Older data had no history - start it from the current price.
+  if (points.length === 0 && listPrice !== null) return [{ date: createdAt.slice(0, 10), price: listPrice }];
+  return points;
+}
 
 export function emptyState(): AppState {
   return {
     version: 1,
-    settings: { ...DEFAULT_SETTINGS },
+    settings: { ...DEFAULT_SETTINGS, expenseTaxBoxes: { ...DEFAULT_SETTINGS.expenseTaxBoxes } },
     settingsUpdatedAt: EPOCH,
     pickups: [],
     items: [],
     expenses: [],
     otherIncome: [],
+    employments: [],
     tombstones: {},
     deletedPhotoIds: [],
   };
@@ -109,6 +141,40 @@ function strList(value: unknown, fallback: string[]): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : fallback;
 }
 
+function subcategoryMap(value: unknown, fallback: Record<string, string[]>): Record<string, string[]> {
+  if (typeof value !== 'object' || value === null) return { ...fallback };
+  const result: Record<string, string[]> = {};
+  for (const [cat, subs] of Object.entries(value)) {
+    const list = strList(subs, []);
+    if (list.length) result[cat] = list;
+  }
+  return result;
+}
+
+/** Categories as editable text: one per line, sub-categories after a colon ("Tops: T-shirts, Shirts") */
+export function categoriesToText(settings: Pick<Settings, 'categories' | 'subcategories'>): string {
+  return settings.categories.map((c) => (settings.subcategories[c]?.length ? `${c}: ${settings.subcategories[c].join(', ')}` : c)).join('\n');
+}
+
+export function parseCategoriesText(text: string): Pick<Settings, 'categories' | 'subcategories'> {
+  const categories: string[] = [];
+  const subcategories: Record<string, string[]> = {};
+  for (const line of text.split('\n')) {
+    const colon = line.indexOf(':');
+    const name = (colon === -1 ? line : line.slice(0, colon)).trim();
+    if (!name) continue;
+    if (!categories.includes(name)) categories.push(name);
+    if (colon === -1) continue;
+    const subs = line
+      .slice(colon + 1)
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (subs.length) subcategories[name] = [...new Set([...(subcategories[name] ?? []), ...subs])];
+  }
+  return { categories, subcategories };
+}
+
 function tombstones(value: unknown): Record<string, string> {
   const result: Record<string, string> = {};
   if (typeof value !== 'object' || value === null) return result;
@@ -134,9 +200,11 @@ export function normaliseState(raw: unknown): AppState {
     weightStepKg: num(s.weightStepKg, DEFAULT_SETTINGS.weightStepKg),
     weightRounding: rounding === 'up' || rounding === 'down' || rounding === 'none' || rounding === 'nearest' ? rounding : 'nearest',
     categories: strList(s.categories, DEFAULT_SETTINGS.categories),
+    subcategories: subcategoryMap(s.subcategories, Array.isArray(s.categories) ? {} : DEFAULT_SETTINGS.subcategories),
     storageAreas: strList(s.storageAreas, DEFAULT_SETTINGS.storageAreas),
     salesChannels: strList(s.salesChannels, DEFAULT_SETTINGS.salesChannels),
     expenseCategories: strList(s.expenseCategories, DEFAULT_SETTINGS.expenseCategories),
+    expenseTaxBoxes: taxBoxes(s.expenseTaxBoxes),
   };
   const now = new Date().toISOString();
   const pickups: Pickup[] = records(r.pickups).map((p) => ({
@@ -152,21 +220,25 @@ export function normaliseState(raw: unknown): AppState {
   const items: Item[] = records(r.items).map((i) => {
     const loc = (typeof i.location === 'object' && i.location !== null ? i.location : {}) as Record<string, unknown>;
     const status = i.status;
+    const listPrice = numOrNull(i.listPrice);
+    const createdAt = str(i.createdAt, now);
     return {
       id: str(i.id) || newId(),
       pickupId: typeof i.pickupId === 'string' ? i.pickupId : null,
       name: str(i.name),
       category: str(i.category, 'Other'),
+      subcategory: str(i.subcategory),
       photoId: typeof i.photoId === 'string' ? i.photoId : null,
       location: { area: str(loc.area), rack: str(loc.rack), box: str(loc.box) },
-      listPrice: numOrNull(i.listPrice),
+      listPrice,
+      priceHistory: priceHistory(i.priceHistory, listPrice, createdAt),
       status: status === 'listed' || status === 'sold' || status === 'written_off' ? status : 'in_stock',
       soldPrice: numOrNull(i.soldPrice),
       soldDate: typeof i.soldDate === 'string' ? i.soldDate : null,
       salesChannel: str(i.salesChannel),
       saleCosts: num(i.saleCosts),
       notes: str(i.notes),
-      createdAt: str(i.createdAt, now),
+      createdAt,
       updatedAt: str(i.updatedAt, EPOCH),
     };
   });
@@ -187,6 +259,14 @@ export function normaliseState(raw: unknown): AppState {
     pickupId: typeof o.pickupId === 'string' ? o.pickupId : null,
     updatedAt: str(o.updatedAt, EPOCH),
   }));
+  const employments: Employment[] = records(r.employments).map((e) => ({
+    id: str(e.id) || newId(),
+    taxYear: str(e.taxYear),
+    employer: str(e.employer),
+    grossPay: num(e.grossPay),
+    taxPaid: num(e.taxPaid),
+    updatedAt: str(e.updatedAt, EPOCH),
+  }));
   return {
     version: 1,
     settings,
@@ -195,6 +275,7 @@ export function normaliseState(raw: unknown): AppState {
     items,
     expenses,
     otherIncome,
+    employments,
     tombstones: tombstones(r.tombstones),
     deletedPhotoIds: strList(r.deletedPhotoIds, []),
   };
@@ -207,10 +288,10 @@ function csvCell(value: string | number | null): string {
 
 export function itemsToCsv(state: AppState, items: Item[]): string {
   const pickups = new Map(state.pickups.map((p) => [p.id, p]));
-  const header = ['Name', 'Category', 'Status', 'Pickup', 'Pickup date', 'Area', 'Rack', 'Box', 'List price', 'Sold price', 'Sold date', 'Channel', 'Sale costs', 'Notes'];
+  const header = ['Name', 'Category', 'Sub-category', 'Status', 'Pickup', 'Pickup date', 'Area', 'Rack', 'Box', 'List price', 'Sold price', 'Sold date', 'Channel', 'Sale costs', 'Notes'];
   const rows = items.map((i) => {
     const p = i.pickupId ? pickups.get(i.pickupId) : undefined;
-    return [i.name, i.category, i.status, p?.reference ?? '', p?.date ?? '', i.location.area, i.location.rack, i.location.box, i.listPrice, i.soldPrice, i.soldDate, i.salesChannel, i.saleCosts, i.notes];
+    return [i.name, i.category, i.subcategory, i.status, p?.reference ?? '', p?.date ?? '', i.location.area, i.location.rack, i.location.box, i.listPrice, i.soldPrice, i.soldDate, i.salesChannel, i.saleCosts, i.notes];
   });
   return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
 }

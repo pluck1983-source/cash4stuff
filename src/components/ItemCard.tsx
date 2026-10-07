@@ -1,5 +1,5 @@
 import type { Item, Pickup } from '../lib/types';
-import { locationLabel } from '../lib/calc';
+import { categoryLabel, locationLabel } from '../lib/calc';
 import { money } from '../lib/format';
 import { routeHref } from '../lib/router';
 import { Photo } from './Photo';
@@ -19,7 +19,7 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
           <div className="shrink-0 font-semibold tabular-nums text-slate-900 dark:text-slate-50">{money(price)}</div>
         </div>
         <div className="truncate text-xs text-slate-500">
-          {item.category}
+          {categoryLabel(item)}
           {pickup && ` · ${pickup.reference}`}
         </div>
         <div className="mt-1 flex items-center justify-between gap-2">

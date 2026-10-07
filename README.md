@@ -26,8 +26,24 @@ offline.
   for the next item, so boxing up a bag of clothes is a few taps each.
   Photos are shrunk on the phone (to ~1200 px JPEG, typically 100-300 KB)
   before they're stored.
-- **Selling** - open an item (search or filter for it), enter what it sold
-  for, where, and any fees/postage you paid, and **Mark as sold**.
+- **Stock you already have** - add a pickup back-dated to when you got it
+  (enter what you paid if you don't know the weight), choose **Save & quick
+  entry**, then type one item per line: name, category, list price,
+  area/rack/box, status (or "already sold" with the price and date) and
+  press Enter. Everything except the name and prices stays set for the next
+  item, and items count as in stock since the pickup date. Add photos later
+  from each item.
+- **Asking vs selling price** - every change to an item's asking price is
+  kept (type the new price when you drop it), the stock table
+  shows reductions and what each sale got as a % of list, and the dashboard
+  shows sold-vs-asking across all sales.
+- **Selling** - open an item (search or filter for it) and tap **Sold it -
+  enter final price**. It asks for the final selling price (left blank on
+  purpose, so the asking price is never recorded by mistake), the date,
+  where, and any fees/postage, then **Confirm sale**.
+- **Categories** - your own list in Settings, one per line, with optional
+  types after a colon (`Tops: T-shirts, Shirts, Vests`). Renaming a
+  category doesn't relabel items already saved under the old name.
 - **Per-pickup profitability** - each pickup shows total cost (stock plus
   any fuel/parking etc. you tag to it), what's sold so far, profit so far
   and return, and the profit if the rest sells at list price. Stock cost is
@@ -47,8 +63,29 @@ offline.
     costs by type, sales by category, recent sales, stock by location and a
     "needs attention" list. **Customise** shows/hides, reorders and widens
     panels and picks which key figures to show (saved per computer).
+  - **Monthly figures**: a month-by-month table (income, stock and running
+    costs, profit, pickups, items added/sold, average sale, sold vs list) on
+    both the phone and desktop dashboards.
   - Period: this month, last month, this year, this UK tax year, all time.
     Stock value figures are always "as of now".
+
+## Finance & tax
+
+The **Finance** tab works per UK tax year (6 April - 5 April) on the cash
+basis: sales count when they're sold, stock when it's paid for.
+
+- Turnover and allowable expenses under the headings of the self-employment
+  pages of the return (SA103), ready to copy across. Which heading each
+  cost type goes under can be changed there.
+- Whether the £1,000 trading allowance beats claiming actual expenses.
+- Pay and tax from other jobs (P60/P45 figures), then an estimate of income
+  tax and Class 4 National Insurance on everything, minus PAYE already paid:
+  what's due by 31 January, likely payments on account, and how much the
+  business adds to the bill.
+- A ledger CSV of every sale, cost and pickup in the year for an accountant.
+
+It's an estimate using England/Wales/NI rates (thresholds frozen to 2031);
+Scotland, losses and savings/dividend/property income aren't modelled.
 
 ## Sign-in, sync and where the data lives
 

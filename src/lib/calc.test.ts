@@ -15,9 +15,11 @@ function item(over: Partial<Item> = {}): Item {
     pickupId: 'p1',
     name: 'Jeans',
     category: 'Jeans',
+    subcategory: '',
     photoId: null,
     location: { area: 'Garage', rack: 'A', box: '3' },
     listPrice: 10,
+    priceHistory: [],
     status: 'listed',
     soldPrice: null,
     soldDate: null,
@@ -118,6 +120,9 @@ describe('totals', () => {
     expect(t.stockListValue).toBe(20);
     // p1 cost 12.5 split over its 2 items
     expect(t.stockBookCost).toBe(6.25);
+    // both sold items were listed at 10 and sold for 30 + 9
+    expect(t.soldListValue).toBe(20);
+    expect(t.soldVsList).toBe(1.95);
   });
 
   it('limits flows to the period but keeps stock as a snapshot', () => {

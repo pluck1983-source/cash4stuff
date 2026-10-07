@@ -157,6 +157,12 @@ export interface Totals {
   pickups: number;
   kgBought: number;
   averageSalePrice: number | null;
+  /** Asking price (at the time of sale) of the items sold in the period that had one */
+  soldListValue: number;
+  /** What those same items actually sold for */
+  soldAgainstListValue: number;
+  /** Sold price as a share of asking price, e.g. 0.85 = sold for 85% of list on average; null if nothing to compare */
+  soldVsList: number | null;
   /** Current snapshot - not limited to the period */
   heldItems: number;
   listedItems: number;
@@ -179,6 +185,9 @@ export function totals(state: AppState, period: Period = ALL_TIME): Totals {
   const totalIncome = pence(salesIncome + otherIncome);
   const held = state.items.filter(isHeld);
   const perItemCost = itemCostMap(state);
+  const compared = soldInPeriod.filter((i) => i.listPrice !== null && i.listPrice > 0);
+  const soldListValue = pence(sum(compared.map((i) => i.listPrice ?? 0)));
+  const soldAgainstListValue = pence(sum(compared.map((i) => i.soldPrice ?? 0)));
   return {
     stockCost,
     runningCosts,
@@ -193,6 +202,9 @@ export function totals(state: AppState, period: Period = ALL_TIME): Totals {
     pickups: pickups.length,
     kgBought: sum(pickups.map((p) => p.weightKg)),
     averageSalePrice: soldInPeriod.length ? pence(salesIncome / soldInPeriod.length) : null,
+    soldListValue,
+    soldAgainstListValue,
+    soldVsList: soldListValue > 0 ? soldAgainstListValue / soldListValue : null,
     heldItems: held.length,
     listedItems: held.filter((i) => i.status === 'listed').length,
     unpricedItems: held.filter((i) => i.listPrice === null).length,
@@ -223,6 +235,7 @@ export interface MonthPoint {
   stockCost: number;
   runningCosts: number;
   profit: number;
+  totals: Totals;
 }
 
 /** Month-by-month income and costs for the last `count` months, oldest first */
@@ -239,6 +252,7 @@ export function monthlySeries(state: AppState, count = 12, today = new Date()): 
       stockCost: t.stockCost,
       runningCosts: pence(t.runningCosts + t.saleCosts),
       profit: t.netProfit,
+      totals: t,
     });
   }
   return points;
@@ -267,10 +281,24 @@ export function salesByCategory(state: AppState, period: Period = ALL_TIME): { c
     .sort((a, b) => b.amount - a.amount);
 }
 
+/** First asking price the item had (before any reductions) */
+export function originalListPrice(item: Item): number | null {
+  return item.priceHistory[0]?.price ?? item.listPrice;
+}
+
+/** How much the asking price has dropped since first listed, as a share (0.2 = 20% off) */
+export function priceDrop(item: Item): number | null {
+  const original = originalListPrice(item);
+  if (!original || item.listPrice === null) return null;
+  return (original - item.listPrice) / original;
+}
+
 export interface ItemFilter {
   text: string;
   /** Empty = any */
   category: string;
+  /** Empty = any; only meaningful with a category */
+  subcategory: string;
   status: ItemStatus | 'held' | '';
   pickupId: string;
   area: string;
@@ -283,6 +311,7 @@ export interface ItemFilter {
 export const EMPTY_FILTER: ItemFilter = {
   text: '',
   category: '',
+  subcategory: '',
   status: '',
   pickupId: '',
   area: '',
@@ -297,6 +326,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   const pickupsById = new Map(state.pickups.map((p) => [p.id, p]));
   return state.items.filter((i) => {
     if (filter.category && i.category !== filter.category) return false;
+    if (filter.category && filter.subcategory && i.subcategory !== filter.subcategory) return false;
     if (filter.status === 'held' ? !isHeld(i) : filter.status && i.status !== filter.status) return false;
     if (filter.pickupId && i.pickupId !== filter.pickupId) return false;
     if (filter.area && i.location.area !== filter.area) return false;
@@ -307,13 +337,18 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
     if (filter.maxPrice !== null && (price ?? 0) > filter.maxPrice) return false;
     if (text) {
       const pickup = i.pickupId ? pickupsById.get(i.pickupId) : undefined;
-      const haystack = [i.name, i.category, i.notes, i.salesChannel, i.location.area, i.location.rack, i.location.box, pickup?.reference ?? '']
+      const haystack = [i.name, i.category, i.subcategory, i.notes, i.salesChannel, i.location.area, i.location.rack, i.location.box, pickup?.reference ?? '']
         .join(' ')
         .toLowerCase();
       if (!haystack.includes(text)) return false;
     }
     return true;
   });
+}
+
+/** "Tops · T-shirts", or just "Tops" */
+export function categoryLabel(item: Pick<Item, 'category' | 'subcategory'>): string {
+  return item.subcategory ? `${item.category} · ${item.subcategory}` : item.category;
 }
 
 export function locationLabel(loc: { area: string; rack: string; box: string }): string {

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AppState, Expense, Item, OtherIncome, Pickup, Settings } from './types';
-import { loadState, newId, saveState } from './storage';
+import type { AppState, Employment, Expense, Item, OtherIncome, Pickup, Settings } from './types';
+import { loadState, newId, saveState, todayIso } from './storage';
 
 type NewPickup = Omit<Pickup, 'id' | 'createdAt' | 'updatedAt'>;
-type NewItem = Omit<Item, 'id' | 'createdAt' | 'updatedAt'>;
+type NewItem = Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'priceHistory'>;
+type NewEmployment = Omit<Employment, 'id' | 'updatedAt'>;
 type NewExpense = Omit<Expense, 'id' | 'updatedAt'>;
 type NewIncome = Omit<OtherIncome, 'id' | 'updatedAt'>;
 
@@ -26,7 +27,7 @@ export function useAppState() {
   const replaceState = useCallback((next: AppState) => setState(next), []);
 
   const actions = useMemo(() => {
-    function upsert<K extends 'pickups' | 'items' | 'expenses' | 'otherIncome'>(key: K, record: AppState[K][number]) {
+    function upsert<K extends 'pickups' | 'items' | 'expenses' | 'otherIncome' | 'employments'>(key: K, record: AppState[K][number]) {
       setState((s) => {
         const list = s[key] as AppState[K][number][];
         const exists = list.some((r) => r.id === record.id);
@@ -34,7 +35,7 @@ export function useAppState() {
       });
     }
 
-    function remove<K extends 'pickups' | 'items' | 'expenses' | 'otherIncome'>(key: K, id: string) {
+    function remove<K extends 'pickups' | 'items' | 'expenses' | 'otherIncome' | 'employments'>(key: K, id: string) {
       setState((s) => ({
         ...s,
         [key]: (s[key] as { id: string }[]).filter((r) => r.id !== id),
@@ -64,14 +65,28 @@ export function useAppState() {
           tombstones: { ...s.tombstones, [id]: now },
         }));
       },
-      addItem(data: NewItem): Item {
+      /** createdAt can be backdated for stock that was already in hand before the app */
+      addItem(data: NewItem, createdAt?: string): Item {
         const now = stamp();
-        const item: Item = { ...data, id: newId(), createdAt: now, updatedAt: now };
+        const added = createdAt ?? now;
+        const priceHistory = data.listPrice !== null ? [{ date: added.slice(0, 10), price: data.listPrice }] : [];
+        const item: Item = { ...data, priceHistory, id: newId(), createdAt: added, updatedAt: now };
         upsert('items', item);
         return item;
       },
+      /** Saves an item; a changed asking price is added to its price history */
       updateItem(item: Item, replacedPhotoId?: string | null) {
-        upsert('items', { ...item, updatedAt: stamp() });
+        setState((s) => {
+          const previous = s.items.find((i) => i.id === item.id);
+          let { priceHistory } = item;
+          if (item.listPrice !== null && item.listPrice !== previous?.listPrice) {
+            const today = todayIso();
+            // Re-pricing twice in a day keeps only the latest price for that day.
+            priceHistory = [...priceHistory.filter((p) => p.date !== today), { date: today, price: item.listPrice }];
+          }
+          const next = { ...item, priceHistory, updatedAt: stamp() };
+          return { ...s, items: previous ? s.items.map((i) => (i.id === item.id ? next : i)) : [...s.items, next] };
+        });
         if (replacedPhotoId && replacedPhotoId !== item.photoId) {
           setState((s) => ({ ...s, deletedPhotoIds: [...s.deletedPhotoIds, replacedPhotoId] }));
         }
@@ -94,6 +109,12 @@ export function useAppState() {
       },
       deleteIncome(id: string) {
         remove('otherIncome', id);
+      },
+      saveEmployment(data: NewEmployment & { id?: string }) {
+        upsert('employments', { ...data, id: data.id ?? newId(), updatedAt: stamp() });
+      },
+      deleteEmployment(id: string) {
+        remove('employments', id);
       },
       updateSettings(settings: Settings) {
         setState((s) => ({ ...s, settings, settingsUpdatedAt: stamp() }));

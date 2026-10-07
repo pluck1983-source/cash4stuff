@@ -33,7 +33,8 @@ type KpiKey =
   | 'averageSalePrice'
   | 'kgBought'
   | 'pickups'
-  | 'unpricedItems';
+  | 'unpricedItems'
+  | 'soldVsList';
 
 interface KpiDef {
   label: string;
@@ -57,6 +58,11 @@ const KPIS: Record<KpiKey, KpiDef> = {
   averageSalePrice: { label: 'Average sale', value: (t) => money(t.averageSalePrice) },
   kgBought: { label: 'Kilos bought', value: (t) => kg(t.kgBought), sub: (t) => `${t.pickups} pickups` },
   pickups: { label: 'Pickups', value: (t) => String(t.pickups), sub: (t) => kg(t.kgBought) },
+  soldVsList: {
+    label: 'Sold vs asking price',
+    value: (t) => percent(t.soldVsList),
+    sub: (t) => (t.soldListValue ? `${money(t.soldAgainstListValue)} for ${money(t.soldListValue)} listed` : 'nothing sold with a list price'),
+  },
   unpricedItems: { label: 'Not priced yet', value: (t) => String(t.unpricedItems), sub: () => 'items with no list price', snapshot: true },
 };
 
@@ -67,10 +73,11 @@ function KpiTile({ k, t }: { k: KpiKey; t: Totals }) {
 
 // --- Widgets -----------------------------------------------------------------
 
-type WidgetKey = 'kpis' | 'monthly' | 'pickups' | 'expenses' | 'categories' | 'recentSales' | 'locations' | 'attention';
+type WidgetKey = 'kpis' | 'monthTable' | 'monthly' | 'pickups' | 'expenses' | 'categories' | 'recentSales' | 'locations' | 'attention';
 
 const WIDGET_LABELS: Record<WidgetKey, string> = {
   kpis: 'Key figures',
+  monthTable: 'Monthly figures',
   monthly: 'Income vs costs by month',
   pickups: 'Pickup profitability',
   expenses: 'Running costs by type',
@@ -94,6 +101,7 @@ interface DashboardLayout {
 const DEFAULT_LAYOUT: DashboardLayout = {
   widgets: [
     { key: 'kpis', visible: true, wide: true },
+    { key: 'monthTable', visible: true, wide: true },
     { key: 'monthly', visible: true, wide: false },
     { key: 'pickups', visible: true, wide: false },
     { key: 'expenses', visible: true, wide: false },
@@ -102,7 +110,7 @@ const DEFAULT_LAYOUT: DashboardLayout = {
     { key: 'attention', visible: true, wide: false },
     { key: 'locations', visible: false, wide: false },
   ],
-  kpis: ['totalIncome', 'netProfit', 'totalCosts', 'stockCost', 'runningCosts', 'stockListValue', 'stockBookCost', 'heldItems'],
+  kpis: ['totalIncome', 'netProfit', 'totalCosts', 'stockCost', 'runningCosts', 'stockListValue', 'soldVsList', 'heldItems'],
 };
 
 /** Layout is per device - a desktop and a laptop can be set up differently */
@@ -154,6 +162,68 @@ function MonthlyChart({ state }: { state: AppState }) {
           <Bar dataKey="costs" name="Costs (stock + running)" fill="var(--series-2)" radius={[4, 4, 0, 0]} maxBarSize={18} />
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Month-by-month figures - the numbers behind the chart, plus volumes */
+function MonthTable({ state, months, compact = false }: { state: AppState; months: number; compact?: boolean }) {
+  const rows = useMemo(() => monthlySeries(state, months).reverse(), [state, months]);
+  const sumOf = (pick: (t: Totals) => number) => rows.reduce((total, r) => total + pick(r.totals), 0);
+  const cols: { label: string; value: (t: Totals) => string; total?: string; wideOnly?: boolean; tone?: (t: Totals) => string }[] = [
+    { label: 'Income', value: (t) => money(t.totalIncome), total: money(sumOf((t) => t.totalIncome)) },
+    { label: 'Stock', value: (t) => money(t.stockCost), total: money(sumOf((t) => t.stockCost)), wideOnly: true },
+    { label: 'Running', value: (t) => money(t.runningCosts + t.saleCosts), total: money(sumOf((t) => t.runningCosts + t.saleCosts)), wideOnly: true },
+    { label: 'Costs', value: (t) => money(t.totalCosts), total: money(sumOf((t) => t.totalCosts)) },
+    {
+      label: 'Profit',
+      value: (t) => money(t.netProfit),
+      total: money(sumOf((t) => t.netProfit)),
+      tone: (t) => (t.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'),
+    },
+    { label: 'Pickups', value: (t) => (t.pickups ? `${t.pickups} · ${kg(t.kgBought)}` : '-'), wideOnly: true },
+    { label: 'Added', value: (t) => String(t.itemsAdded), total: String(sumOf((t) => t.itemsAdded)), wideOnly: true },
+    { label: 'Sold', value: (t) => String(t.itemsSold), total: String(sumOf((t) => t.itemsSold)) },
+    { label: 'Avg sale', value: (t) => money(t.averageSalePrice), wideOnly: true },
+    { label: 'Vs list', value: (t) => percent(t.soldVsList), wideOnly: true },
+  ];
+  const shown = cols.filter((c) => !compact || !c.wideOnly);
+  return (
+    <div className="-mx-4 overflow-x-auto">
+      <table className="w-full whitespace-nowrap text-sm">
+        <thead className="text-left text-xs uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="px-4 py-1.5">Month</th>
+            {shown.map((c) => (
+              <th key={c.label} className="px-2 py-1.5 text-right last:pr-4">
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 tabular-nums dark:divide-slate-800">
+          {rows.map((r) => (
+            <tr key={r.month}>
+              <td className="px-4 py-1.5 font-medium">{r.label}</td>
+              {shown.map((c) => (
+                <td key={c.label} className={`px-2 py-1.5 text-right last:pr-4 ${c.tone?.(r.totals) ?? ''}`}>
+                  {c.value(r.totals)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t-2 border-slate-200 font-semibold tabular-nums dark:border-slate-700">
+          <tr>
+            <td className="px-4 py-1.5">Total</td>
+            {shown.map((c) => (
+              <td key={c.label} className="px-2 py-1.5 text-right last:pr-4">
+                {c.total ?? ''}
+              </td>
+            ))}
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }
@@ -213,7 +283,7 @@ function PickupTable({ state, limit }: { state: AppState; limit?: number }) {
               </td>
               <td className="px-2 py-2 text-right tabular-nums">{money(s.totalCost)}</td>
               <td className="px-2 py-2 text-right tabular-nums">{money(s.salesRevenue + s.otherIncome)}</td>
-              <td className={`px-2 py-2 text-right font-medium tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <td className={`whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {money(s.realisedProfit)}
                 <div className="text-xs font-normal text-slate-500">{percent(s.roi)}</div>
               </td>
@@ -348,6 +418,10 @@ function QuickDashboard({ state }: { state: AppState }) {
         ))}
       </div>
 
+      <Card title="Monthly figures" action={<a className="text-sm text-emerald-700 underline dark:text-emerald-400" href={routeHref({ name: 'finance' })}>Finance</a>}>
+        <MonthTable state={state} months={6} compact />
+      </Card>
+
       <Card title="Latest pickups" action={<a className="text-sm text-emerald-700 underline dark:text-emerald-400" href={routeHref({ name: 'pickups' })}>All</a>}>
         <PickupTable state={state} limit={3} />
       </Card>
@@ -395,6 +469,8 @@ function FullDashboard({ state }: { state: AppState }) {
             ))}
           </div>
         );
+      case 'monthTable':
+        return <MonthTable state={state} months={12} />;
       case 'monthly':
         return <MonthlyChart state={state} />;
       case 'pickups':
@@ -419,6 +495,7 @@ function FullDashboard({ state }: { state: AppState }) {
 
   const periodNote: Partial<Record<WidgetKey, string>> = {
     kpis: `${PERIOD_LABELS[periodKey]} · stock figures are as of now`,
+    monthTable: 'Last 12 months, newest first',
     monthly: 'Last 12 months',
     pickups: 'All time, newest first',
     expenses: PERIOD_LABELS[periodKey],

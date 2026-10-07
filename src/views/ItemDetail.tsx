@@ -175,11 +175,12 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
   );
 }
 
-/** Asking price, its history, and one-tap reductions */
+/** Asking price, its history, and typing in a new one */
 function PriceCard({ item, actions }: { item: Item; actions: AppActions }) {
   const original = originalListPrice(item);
-  const reduceTo = (price: number) => actions.updateItem({ ...item, listPrice: Math.max(0, pence(price)) });
   const current = item.listPrice;
+  const [newPrice, setNewPrice] = useState('');
+  const parsed = parseNumber(newPrice);
   return (
     <Card title="Asking price">
       <div className="flex items-baseline gap-2">
@@ -190,13 +191,31 @@ function PriceCard({ item, actions }: { item: Item; actions: AppActions }) {
           </span>
         )}
       </div>
-      {current !== null && item.status !== 'sold' && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button onClick={() => reduceTo(current * 0.9)}>-10%</Button>
-          <Button onClick={() => reduceTo(current * 0.8)}>-20%</Button>
-          <Button onClick={() => reduceTo(current - 1)}>-£1</Button>
-          <Button onClick={() => reduceTo(current - 5)}>-£5</Button>
-        </div>
+      {item.status !== 'sold' && (
+        <form
+          className="mt-3 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (parsed === null || parsed === current) return;
+            actions.updateItem({ ...item, listPrice: pence(parsed) });
+            setNewPrice('');
+          }}
+        >
+          <Input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            value={newPrice}
+            onChange={(e) => setNewPrice(e.target.value)}
+            placeholder="New price £"
+            aria-label="New asking price"
+            className="flex-1"
+          />
+          <Button type="submit" variant="primary" disabled={parsed === null || parsed === current}>
+            Change price
+          </Button>
+        </form>
       )}
       {item.priceHistory.length > 1 && (
         <ul className="mt-3 space-y-0.5 text-xs text-slate-500">
@@ -208,7 +227,7 @@ function PriceCard({ item, actions }: { item: Item; actions: AppActions }) {
           ))}
         </ul>
       )}
-      <p className="mt-3 text-xs text-slate-500">Change the price in Details, or use the buttons. Each change is kept so you can see what it sold for against what it was listed at.</p>
+      <p className="mt-3 text-xs text-slate-500">Type the new price when you drop it. Each change is kept so you can see what it sold for against what it was listed at.</p>
     </Card>
   );
 }

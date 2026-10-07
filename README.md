@@ -34,7 +34,7 @@ offline.
   item, and items count as in stock since the pickup date. Add photos later
   from each item.
 - **Asking vs selling price** - every change to an item's asking price is
-  kept (with one-tap -10% / -20% / -£1 / -£5 reductions), the stock table
+  kept (type the new price when you drop it), the stock table
   shows reductions and what each sale got as a % of list, and the dashboard
   shows sold-vs-asking across all sales.
 - **Selling** - open an item (search or filter for it), enter what it sold

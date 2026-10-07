@@ -192,7 +192,7 @@ function records(value: unknown): Record<string, unknown>[] {
  * hand-edited files can't crash the app. Throws only if it isn't an object at all.
  */
 export function normaliseState(raw: unknown): AppState {
-  if (typeof raw !== 'object' || raw === null) throw new Error('Not a Cash4Stuff data file');
+  if (typeof raw !== 'object' || raw === null) throw new Error('Not a Wardrobe to Wallet data file');
   const r = raw as Record<string, unknown>;
   const s = (typeof r.settings === 'object' && r.settings !== null ? r.settings : {}) as Record<string, unknown>;
   const rounding = s.weightRounding;

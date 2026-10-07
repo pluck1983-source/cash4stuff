@@ -103,7 +103,7 @@ export function ItemEditor({ state, draft, onChange, showPickup = true }: { stat
           onChange={(category) => set({ category, subcategory: category === draft.category ? draft.subcategory : '' })}
         />
         {subcategories.length > 0 && (
-          <div className="mt-2 border-l-2 border-emerald-200 pl-3 dark:border-emerald-900">
+          <div className="mt-2 border-l-2 border-brand-200 pl-3 dark:border-brand-900">
             <span className="mb-1 block text-xs text-slate-500">Type (optional - tap again to clear)</span>
             <Chips options={subcategories} value={draft.subcategory} onChange={(sub) => set({ subcategory: sub === draft.subcategory ? '' : sub })} />
           </div>

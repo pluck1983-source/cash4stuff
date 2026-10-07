@@ -5,7 +5,7 @@ import { AuthRequiredError, type CloudProvider, type RemoteFileMeta } from './ty
  * full-page redirect to Google and back - no server, no popup, so it works
  * on an iPhone home-screen app).
  *
- * Data lives in an ordinary, visible "Cash4Stuff" folder: one JSON file
+ * Data lives in an ordinary, visible "Wardrobe to Wallet" folder: one JSON file
  * plus a "photos" subfolder with one JPEG per item photo. The business owner
  * signs in first, which creates the folder in their Drive, then shares it
  * (Editor) with anyone else who should use the app. Those people sign in
@@ -20,7 +20,7 @@ import { AuthRequiredError, type CloudProvider, type RemoteFileMeta } from './ty
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const SCOPE = 'openid email https://www.googleapis.com/auth/drive';
 const FILE_NAME = 'cash4stuff-data.json';
-const FOLDER_NAME = 'Cash4Stuff';
+const FOLDER_NAME = 'Wardrobe to Wallet';
 const PHOTOS_FOLDER_NAME = 'photos';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const TOKEN_KEY = 'cash4stuff-gdrive-token';
@@ -89,7 +89,7 @@ function consumeRedirectResult() {
     sessionStorage.setItem(SIGN_IN_ERROR_KEY, error === 'access_denied' ? 'Google sign-in was cancelled or blocked. Check this Google account is added as a test user, then try again.' : `Google sign-in failed (${error}).`);
   } else if (token && granted && !granted.includes('auth/drive')) {
     // Google's consent screen lets people untick Drive access - without it nothing can sync.
-    sessionStorage.setItem(SIGN_IN_ERROR_KEY, 'Google Drive access was not allowed. Sign in again and tick the box to let Cash4Stuff see and edit your Google Drive files.');
+    sessionStorage.setItem(SIGN_IN_ERROR_KEY, 'Google Drive access was not allowed. Sign in again and tick the box to let Wardrobe to Wallet see and edit your Google Drive files.');
   } else if (token) {
     writeToken({ token, expiresAt: Date.now() + Number(params.get('expires_in') ?? 3600) * 1000 });
     sessionStorage.removeItem(SILENT_TRIED_KEY);
@@ -149,8 +149,8 @@ async function driveErrorMessage(response: Response): Promise<string> {
   if (reason === 'accessNotConfigured' || reason === 'SERVICE_DISABLED' || /has not been used|is disabled/i.test(detail))
     return 'The Google Drive API is switched off in the Google Cloud project. Turn it on (APIs & Services → Library → Google Drive API → Enable), wait a few minutes, then tap retry.';
   if (reason === 'insufficientPermissions' || reason === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT' || /insufficient/i.test(detail))
-    return 'Google Drive access was not allowed. Sign out in Settings, sign in again and tick the box to let Cash4Stuff see and edit your Google Drive files.';
-  if (response.status === 404) return 'The Cash4Stuff data file could not be found in Google Drive - it may have been deleted or un-shared.';
+    return 'Google Drive access was not allowed. Sign out in Settings, sign in again and tick the box to let Wardrobe to Wallet see and edit your Google Drive files.';
+  if (response.status === 404) return 'The Wardrobe to Wallet data file could not be found in Google Drive - it may have been deleted or un-shared.';
   return `Google Drive request failed (${response.status}${detail ? `: ${detail}` : ''})`;
 }
 

@@ -91,7 +91,7 @@ export function FinanceView({ state, actions }: { state: AppState; actions: AppA
               <>Actual expenses beat the £1,000 trading allowance this year, so claim expenses.</>
             )}
           </div>
-          <button type="button" className="mt-3 text-sm text-emerald-700 underline dark:text-emerald-400" onClick={() => setShowMapping((v) => !v)}>
+          <button type="button" className="mt-3 text-sm text-brand-700 underline dark:text-brand-400" onClick={() => setShowMapping((v) => !v)}>
             {showMapping ? 'Hide' : 'Change'} which heading each cost type goes under
           </button>
           {showMapping && (
@@ -132,7 +132,7 @@ export function FinanceView({ state, actions }: { state: AppState; actions: AppA
                     <span className="flex-1">{e.employer || 'Employment'}</span>
                     <span className="tabular-nums">{money(e.grossPay)}</span>
                     <span className="w-24 text-right tabular-nums text-slate-500">tax {money(e.taxPaid)}</span>
-                    <button type="button" className="text-slate-400 hover:text-rose-600" aria-label="Remove" onClick={() => actions.deleteEmployment(e.id)}>
+                    <button type="button" className="text-slate-400 hover:text-red-600" aria-label="Remove" onClick={() => actions.deleteEmployment(e.id)}>
                       ✕
                     </button>
                   </li>

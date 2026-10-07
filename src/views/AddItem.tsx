@@ -115,7 +115,7 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
         }}
       >
         <ItemEditor state={state} draft={draft} onChange={setDraft} />
-        {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         {/* Sticky on phones so saving never needs a scroll back down */}
         <div className="sticky bottom-16 z-10 -mx-4 mt-6 flex gap-2 border-t border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 dark:border-slate-800 dark:bg-slate-950/95">
           <Button type="submit" variant="primary" className="flex-1 py-3 text-base" disabled={saving}>

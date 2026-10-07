@@ -1,4 +1,4 @@
-# Cash4Stuff
+# Wardrobe to Wallet
 
 A phone-and-desktop app for a small resale clothing business that buys
 people's old clothes by the kilo and sells them on. It tracks what every
@@ -94,14 +94,16 @@ Scotland, losses and savings/dividend/property income aren't modelled.
 Everyone signs in with their **own** Google account. There's no server of
 our own: the browser talks straight to Google.
 
-- The data lives in a normal **Cash4Stuff** folder in the business owner's
+- The data lives in a normal **Wardrobe to Wallet** folder in the business owner's
+  (folders made before the rename are called Cash4Stuff - rename them freely,
+  the app finds its data by file name, not folder name)
   Google Drive: `cash4stuff-data.json` plus a `photos` subfolder with one
   `photo-<id>.jpg` per item. The owner can open it in Drive like any other
   folder.
 - Anyone else who uses the app (e.g. a helper) gets access when the owner
   **shares that folder with them as Editor** in Google Drive, and loses it
   when the owner unshares it. Nobody needs anyone else's password.
-- The first time an account signs in and no Cash4Stuff data is in its Drive
+- The first time an account signs in and no Wardrobe to Wallet data is in its Drive
   or shared with it, the app asks before creating a new folder. The owner
   says OK; a helper says Cancel, gets the owner to share the folder, and
   signs in again. If the shared data later disappears (unshared or
@@ -149,8 +151,8 @@ project, then:
 Then:
 
 1. **The owner** opens the app, signs in with their Google account and
-   presses **OK** to start a new Cash4Stuff folder.
-2. In Google Drive, the owner right-clicks the **Cash4Stuff** folder →
+   presses **OK** to start a new Wardrobe to Wallet folder.
+2. In Google Drive, the owner right-clicks the **Wardrobe to Wallet** folder →
    *Share* → adds each helper's Gmail as **Editor**.
 3. **Each helper** opens the app and signs in with their own Google account.
 
@@ -160,7 +162,7 @@ verifying it is only needed to open the app to the public, not for a
 handful of listed test users. Testing-mode sign-ins may also need
 re-approving every 7 days.
 
-To give Cash4Stuff its own consent-screen name instead of "Tax Planner",
+To give Wardrobe to Wallet its own consent-screen name instead of "Tax Planner",
 create a separate Cloud project with the same steps (plus enabling the
 Google Drive API) and put its client ID in `.env` as
 `VITE_GOOGLE_CLIENT_ID`. The data stays in the Drive folder either way.

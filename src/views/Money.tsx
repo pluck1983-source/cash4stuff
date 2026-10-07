@@ -69,7 +69,7 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
               setTab(t);
               setDraft(blankDraft(defaultCategory));
             }}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium ${tab === t ? 'bg-emerald-600 text-white' : 'text-slate-600 dark:text-slate-300'}`}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium ${tab === t ? 'bg-brand-600 text-white' : 'text-slate-600 dark:text-slate-300'}`}
           >
             {t === 'costs' ? 'Running costs' : 'Other income'}
           </button>
@@ -164,7 +164,7 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
                   <span className="tabular-nums text-sm font-semibold">{money(r.amount)}</span>
                   <button
                     type="button"
-                    className="text-slate-400 hover:text-rose-600"
+                    className="text-slate-400 hover:text-red-600"
                     aria-label="Delete"
                     onClick={() => {
                       if (window.confirm('Delete this entry?')) (tab === 'costs' ? actions.deleteExpense : actions.deleteIncome)(r.id);

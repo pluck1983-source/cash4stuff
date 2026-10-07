@@ -29,7 +29,7 @@ export function SyncControl({ status, lastSyncedAt, pendingPhotos, error, onConn
     );
   }
 
-  const dot = status === 'syncing' ? 'bg-sky-500 animate-pulse' : status === 'error' ? 'bg-rose-500' : 'bg-emerald-500';
+  const dot = status === 'syncing' ? 'bg-sky-500 animate-pulse' : status === 'error' ? 'bg-red-500' : 'bg-emerald-500';
   const label =
     status === 'syncing'
       ? pendingPhotos > 0

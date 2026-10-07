@@ -197,7 +197,7 @@ function SoldCard({ item, buyCost, onEdit, actions }: { item: Item; buyCost: num
       )}
       {profit !== null && (
         <p className="mt-1 text-sm">
-          Profit on this item ≈ <strong className={profit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600'}>{money(profit)}</strong>
+          Profit on this item ≈ <strong className={profit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600'}>{money(profit)}</strong>
         </p>
       )}
       <div className="mt-3 flex gap-2">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { AppState, ItemStatus, StorageLocation } from '../lib/types';
 import { parseNumber, shortDate } from '../lib/format';
 import { Chips, Field, Input, Select } from './ui';
@@ -8,6 +8,7 @@ export interface ItemDraft {
   pickupId: string | null;
   name: string;
   category: string;
+  subcategory: string;
   location: StorageLocation;
   listPrice: string;
   status: ItemStatus;
@@ -44,10 +45,7 @@ export function ItemEditor({ state, draft, onChange, showPickup = true }: { stat
       [...new Set(state.items.filter((i) => i.location.area === draft.location.area && i.location.rack === draft.location.rack && i.location.box).map((i) => i.location.box))].sort(),
     [state.items, draft.location.area, draft.location.rack],
   );
-  const [showMoreCategories, setShowMoreCategories] = useState(false);
-  const categories = state.settings.categories;
-  const visibleCategories = showMoreCategories || categories.length <= 10 ? categories : categories.slice(0, 9);
-  if (draft.category && !visibleCategories.includes(draft.category) && categories.includes(draft.category)) visibleCategories.push(draft.category);
+  const subcategories = state.settings.subcategories[draft.category] ?? [];
 
   return (
     <div className="space-y-5">
@@ -85,11 +83,16 @@ export function ItemEditor({ state, draft, onChange, showPickup = true }: { stat
 
       <div>
         <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Category</span>
-        <Chips options={visibleCategories} value={draft.category} onChange={(category) => set({ category })} />
-        {!showMoreCategories && categories.length > 10 && (
-          <button type="button" className="mt-1.5 text-sm text-emerald-700 underline dark:text-emerald-400" onClick={() => setShowMoreCategories(true)}>
-            More categories…
-          </button>
+        <Chips
+          options={state.settings.categories}
+          value={draft.category}
+          onChange={(category) => set({ category, subcategory: category === draft.category ? draft.subcategory : '' })}
+        />
+        {subcategories.length > 0 && (
+          <div className="mt-2 border-l-2 border-emerald-200 pl-3 dark:border-emerald-900">
+            <span className="mb-1 block text-xs text-slate-500">Type (optional - tap again to clear)</span>
+            <Chips options={subcategories} value={draft.subcategory} onChange={(sub) => set({ subcategory: sub === draft.subcategory ? '' : sub })} />
+          </div>
         )}
       </div>
 

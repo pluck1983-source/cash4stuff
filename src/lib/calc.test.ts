@@ -15,6 +15,7 @@ function item(over: Partial<Item> = {}): Item {
     pickupId: 'p1',
     name: 'Jeans',
     category: 'Jeans',
+    subcategory: '',
     photoId: null,
     location: { area: 'Garage', rack: 'A', box: '3' },
     listPrice: 10,

@@ -37,8 +37,13 @@ offline.
   kept (type the new price when you drop it), the stock table
   shows reductions and what each sale got as a % of list, and the dashboard
   shows sold-vs-asking across all sales.
-- **Selling** - open an item (search or filter for it), enter what it sold
-  for, where, and any fees/postage you paid, and **Mark as sold**.
+- **Selling** - open an item (search or filter for it) and tap **Sold it -
+  enter final price**. It asks for the final selling price (left blank on
+  purpose, so the asking price is never recorded by mistake), the date,
+  where, and any fees/postage, then **Confirm sale**.
+- **Categories** - your own list in Settings, one per line, with optional
+  types after a colon (`Tops: T-shirts, Shirts, Vests`). Renaming a
+  category doesn't relabel items already saved under the old name.
 - **Per-pickup profitability** - each pickup shows total cost (stock plus
   any fuel/parking etc. you tag to it), what's sold so far, profit so far
   and return, and the profit if the rest sells at list price. Stock cost is

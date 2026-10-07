@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyState, exportStateAsJson, importStateFromJson, itemsToCsv, normaliseState } from './storage';
+import { categoriesToText, emptyState, exportStateAsJson, importStateFromJson, itemsToCsv, normaliseState, parseCategoriesText } from './storage';
 
 describe('normaliseState', () => {
   it('round-trips through JSON', () => {
@@ -28,5 +28,20 @@ describe('price history', () => {
   it('starts history from the current price for older data', () => {
     const s = normaliseState({ items: [{ id: 'i1', listPrice: 12, createdAt: '2026-02-03T10:00:00.000Z' }] });
     expect(s.items[0].priceHistory).toEqual([{ date: '2026-02-03', price: 12 }]);
+  });
+});
+
+describe('category text', () => {
+  it('round-trips categories with optional sub-categories', () => {
+    const parsed = parseCategoriesText('Tops: T-shirts, Shirts ,\nJeans\n\nTops: Vests\nShoes:');
+    expect(parsed.categories).toEqual(['Tops', 'Jeans', 'Shoes']);
+    expect(parsed.subcategories).toEqual({ Tops: ['T-shirts', 'Shirts', 'Vests'] });
+    expect(categoriesToText(parsed)).toBe('Tops: T-shirts, Shirts, Vests\nJeans\nShoes');
+  });
+
+  it('keeps old data loading: items get an empty sub-category, saved category lists get none', () => {
+    const s = normaliseState({ settings: { categories: ['A'] }, items: [{ id: 'i', category: 'A' }] });
+    expect(s.items[0].subcategory).toBe('');
+    expect(s.settings.subcategories).toEqual({});
   });
 });

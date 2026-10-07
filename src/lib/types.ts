@@ -9,6 +9,8 @@ export interface Settings {
   weightRounding: WeightRounding;
   /** Item categories offered when adding stock */
   categories: string[];
+  /** Optional sub-categories per category (e.g. Tops -> T-shirts, Shirts) */
+  subcategories: Record<string, string[]>;
   /** Storage areas offered when adding stock (e.g. "Garage", "Unit 4") */
   storageAreas: string[];
   /** Where things sell (e.g. "Vinted", "eBay", "Depop") */
@@ -72,6 +74,8 @@ export interface Item {
   pickupId: string | null;
   name: string;
   category: string;
+  /** Optional - empty when the category has no sub-categories or none was picked */
+  subcategory: string;
   /** Key of the compressed photo in the photo store, if one was taken */
   photoId: string | null;
   location: StorageLocation;

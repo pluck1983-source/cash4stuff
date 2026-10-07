@@ -297,6 +297,8 @@ export interface ItemFilter {
   text: string;
   /** Empty = any */
   category: string;
+  /** Empty = any; only meaningful with a category */
+  subcategory: string;
   status: ItemStatus | 'held' | '';
   pickupId: string;
   area: string;
@@ -309,6 +311,7 @@ export interface ItemFilter {
 export const EMPTY_FILTER: ItemFilter = {
   text: '',
   category: '',
+  subcategory: '',
   status: '',
   pickupId: '',
   area: '',
@@ -323,6 +326,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   const pickupsById = new Map(state.pickups.map((p) => [p.id, p]));
   return state.items.filter((i) => {
     if (filter.category && i.category !== filter.category) return false;
+    if (filter.category && filter.subcategory && i.subcategory !== filter.subcategory) return false;
     if (filter.status === 'held' ? !isHeld(i) : filter.status && i.status !== filter.status) return false;
     if (filter.pickupId && i.pickupId !== filter.pickupId) return false;
     if (filter.area && i.location.area !== filter.area) return false;
@@ -333,13 +337,18 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
     if (filter.maxPrice !== null && (price ?? 0) > filter.maxPrice) return false;
     if (text) {
       const pickup = i.pickupId ? pickupsById.get(i.pickupId) : undefined;
-      const haystack = [i.name, i.category, i.notes, i.salesChannel, i.location.area, i.location.rack, i.location.box, pickup?.reference ?? '']
+      const haystack = [i.name, i.category, i.subcategory, i.notes, i.salesChannel, i.location.area, i.location.rack, i.location.box, pickup?.reference ?? '']
         .join(' ')
         .toLowerCase();
       if (!haystack.includes(text)) return false;
     }
     return true;
   });
+}
+
+/** "Tops · T-shirts", or just "Tops" */
+export function categoryLabel(item: Pick<Item, 'category' | 'subcategory'>): string {
+  return item.subcategory ? `${item.category} · ${item.subcategory}` : item.category;
 }
 
 export function locationLabel(loc: { area: string; rack: string; box: string }): string {

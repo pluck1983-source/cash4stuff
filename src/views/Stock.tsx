@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppState, Item } from '../lib/types';
-import { EMPTY_FILTER, filterItems, locationLabel, priceDrop, type ItemFilter } from '../lib/calc';
+import { EMPTY_FILTER, categoryLabel, filterItems, locationLabel, priceDrop, type ItemFilter } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { routeHref, useIsDesktop } from '../lib/router';
 import { downloadText, itemsToCsv, todayIso } from '../lib/storage';
@@ -106,12 +106,20 @@ export function StockView({ state }: { state: AppState }) {
             <option value="sold">Sold</option>
             <option value="written_off">Written off</option>
           </Select>
-          <Select value={filter.category} onChange={(e) => setFilter({ category: e.target.value })} aria-label="Category">
+          <Select value={filter.category} onChange={(e) => setFilter({ category: e.target.value, subcategory: '' })} aria-label="Category">
             <option value="">All categories</option>
             {state.settings.categories.map((c) => (
               <option key={c}>{c}</option>
             ))}
           </Select>
+          {(state.settings.subcategories[filter.category]?.length ?? 0) > 0 && (
+            <Select value={filter.subcategory} onChange={(e) => setFilter({ subcategory: e.target.value })} aria-label="Sub-category">
+              <option value="">All {filter.category.toLowerCase()}</option>
+              {state.settings.subcategories[filter.category].map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </Select>
+          )}
           <Select value={filter.pickupId} onChange={(e) => setFilter({ pickupId: e.target.value })} aria-label="Pickup">
             <option value="">All pickups</option>
             {[...state.pickups]
@@ -210,7 +218,7 @@ export function StockView({ state }: { state: AppState }) {
                     </td>
                     <td className="p-2">
                       <div className="font-medium text-slate-900 dark:text-slate-100">{i.name || i.category}</div>
-                      <div className="text-xs text-slate-500">{i.category}</div>
+                      <div className="text-xs text-slate-500">{categoryLabel(i)}</div>
                     </td>
                     <td className="p-2 text-slate-600 dark:text-slate-300">{p?.reference ?? '-'}</td>
                     <td className="p-2 text-slate-600 dark:text-slate-300">{locationLabel(i.location) || '-'}</td>

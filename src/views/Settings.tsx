@@ -3,7 +3,7 @@ import type { AppState, Settings, WeightRounding } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { calculatedPickupCost } from '../lib/calc';
 import { money, parseNumber } from '../lib/format';
-import { downloadText, exportStateAsJson, importStateFromJson, todayIso } from '../lib/storage';
+import { categoriesToText, downloadText, exportStateAsJson, importStateFromJson, parseCategoriesText, todayIso } from '../lib/storage';
 import { Button, Card, Field, Input, PageHeader, Select, TextArea } from '../components/ui';
 
 function ListEditor({ label, values, onSave }: { label: string; values: string[]; onSave: (v: string[]) => void }) {
@@ -16,6 +16,32 @@ function ListEditor({ label, values, onSave }: { label: string; values: string[]
       {changed && (
         <Button variant="primary" className="mt-2" onClick={() => onSave(parsed)}>
           Save {label.toLowerCase()}
+        </Button>
+      )}
+    </Field>
+  );
+}
+
+function CategoryEditor({ state, onSave }: { state: AppState; onSave: (v: Pick<Settings, 'categories' | 'subcategories'>) => void }) {
+  const saved = categoriesToText(state.settings);
+  const [text, setText] = useState(saved);
+  const parsed = parseCategoriesText(text);
+  const changed = categoriesToText({ ...state.settings, ...parsed }) !== saved;
+  // Items whose category/sub-category would no longer be in the list keep their old label - say so before saving.
+  const orphaned = state.items.filter(
+    (i) => !parsed.categories.includes(i.category) || (i.subcategory && !(parsed.subcategories[i.category] ?? []).includes(i.subcategory)),
+  ).length;
+  return (
+    <Field label="Categories" hint='One per line. Optional types after a colon, e.g. "Tops: T-shirts, Shirts, Vests"'>
+      <TextArea rows={Math.min(14, Math.max(5, state.settings.categories.length + 1))} value={text} onChange={(e) => setText(e.target.value)} />
+      {changed && orphaned > 0 && (
+        <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          {orphaned} item(s) use a category or type that isn't in this list any more. They'll keep the old name until you edit them.
+        </p>
+      )}
+      {changed && (
+        <Button variant="primary" className="mt-2" onClick={() => onSave(parsed)}>
+          Save categories
         </Button>
       )}
     </Field>
@@ -95,7 +121,7 @@ export function SettingsView({
 
       <Card title="Lists">
         <div className="grid gap-4 md:grid-cols-2">
-          <ListEditor label="Categories" values={settings.categories} onSave={(categories) => update({ categories })} />
+          <CategoryEditor state={state} onSave={(c) => update(c)} />
           <ListEditor label="Storage areas" values={settings.storageAreas} onSave={(storageAreas) => update({ storageAreas })} />
           <ListEditor label="Sales channels" values={settings.salesChannels} onSave={(salesChannels) => update({ salesChannels })} />
           <ListEditor label="Cost types" values={settings.expenseCategories} onSave={(expenseCategories) => update({ expenseCategories })} />

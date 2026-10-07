@@ -9,6 +9,7 @@ const KEY = 'cash4stuff-quick-entry-defaults';
 
 interface Defaults {
   category: string;
+  subcategory?: string;
   area: string;
   rack: string;
   box: string;
@@ -38,6 +39,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
   const [soldDate, setSoldDate] = useState(todayIso());
   const [count, setCount] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
+  const subs = state.settings.subcategories[d.category] ?? [];
 
   const set = (patch: Partial<Defaults>) => {
     const next = { ...d, ...patch };
@@ -60,6 +62,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         pickupId: pickup.id,
         name: name.trim(),
         category: d.category,
+        subcategory: subs.includes(d.subcategory ?? '') ? (d.subcategory ?? '') : '',
         photoId: null,
         location: { area: d.area, rack: d.rack.trim(), box: d.box.trim() },
         listPrice,
@@ -97,11 +100,19 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         }}
       >
         <Input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Item name" className="col-span-2" aria-label="Item name" />
-        <Select value={d.category} onChange={(e) => set({ category: e.target.value })} aria-label="Category">
+        <Select value={d.category} onChange={(e) => set({ category: e.target.value, subcategory: '' })} aria-label="Category">
           {state.settings.categories.map((c) => (
             <option key={c}>{c}</option>
           ))}
         </Select>
+        {subs.length > 0 && (
+          <Select value={d.subcategory ?? ''} onChange={(e) => set({ subcategory: e.target.value })} aria-label="Sub-category">
+            <option value="">Any type</option>
+            {subs.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </Select>
+        )}
         <Input type="number" inputMode="decimal" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="List £" aria-label="Listing price" />
         <Select value={d.area} onChange={(e) => set({ area: e.target.value })} aria-label="Storage area">
           <option value="">No area</option>

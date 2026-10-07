@@ -126,6 +126,22 @@ export default function App() {
     />
   );
 
+  // Spelled out on screen - a tooltip can't be read on a phone.
+  const syncProblem = sync.error && (sync.status === 'error' || sync.status === 'reconnect') && (
+    <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-200">
+      <strong>Not syncing with Google Drive.</strong> {sync.error} Your changes are kept on this device until it works.
+      <div className="mt-2">
+        <button
+          type="button"
+          className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-rose-800 dark:border-rose-800 dark:bg-rose-900 dark:text-rose-100"
+          onClick={() => void (sync.status === 'reconnect' ? sync.connect() : sync.syncNow())}
+        >
+          {sync.status === 'reconnect' ? 'Sign in again' : 'Retry'}
+        </button>
+      </div>
+    </div>
+  );
+
   if (isDesktop) {
     return (
       <div className="flex min-h-screen text-slate-900 dark:text-slate-100">
@@ -155,7 +171,10 @@ export default function App() {
             {sync.accountEmail && <div className="truncate px-2 text-xs text-slate-500" title={sync.accountEmail}>{sync.accountEmail}</div>}
           </div>
         </aside>
-        <main className="min-w-0 flex-1 p-6 xl:p-8">{view}</main>
+        <main className="min-w-0 flex-1 p-6 xl:p-8">
+          {syncProblem}
+          {view}
+        </main>
       </div>
     );
   }
@@ -172,7 +191,10 @@ export default function App() {
           <NavIcon>{NAV[NAV.length - 1].icon}</NavIcon>
         </a>
       </header>
-      <main className="p-4">{view}</main>
+      <main className="p-4">
+        {syncProblem}
+        {view}
+      </main>
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         {NAV.filter((n) => n.section !== 'settings').map((n) => (
           <a

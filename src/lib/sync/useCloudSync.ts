@@ -4,7 +4,7 @@ import { exportStateAsJson, importStateFromJson } from '../storage';
 import { getPhoto, markPhotoSynced, setRemotePhotoFetcher, unsyncedPhotoIds } from '../photos';
 import { AuthRequiredError, type CloudProvider, type RemoteFileMeta } from './types';
 import { decideSync, hashState, mergeStates } from './syncEngine';
-import { googleDriveProvider } from './googleDrive';
+import { googleDriveProvider, takeSignInError } from './googleDrive';
 
 export type SyncStatus =
   | 'unconfigured' // built without a client ID - sign-in and sync hidden, data stays on this device
@@ -65,7 +65,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
   const [accountEmail, setAccountEmail] = useState<string | null>(() => readMeta()?.accountEmail ?? null);
   const [dataOwner, setDataOwner] = useState<string | null>(() => readMeta()?.dataOwner ?? null);
   const [pendingPhotos, setPendingPhotos] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => takeSignInError());
 
   const stateRef = useRef(state);
   stateRef.current = state;

@@ -86,7 +86,7 @@ function consumeRedirectResult() {
   const token = params.get('access_token');
   const error = params.get('error');
   const granted = params.get('scope') ?? '';
-  if (error && error !== 'interaction_required' && error !== 'login_required' && error !== 'consent_required') {
+  if (error && !['interaction_required', 'login_required', 'consent_required', 'account_selection_required'].includes(error)) {
     sessionStorage.setItem(SIGN_IN_ERROR_KEY, error === 'access_denied' ? 'Google sign-in was cancelled or blocked. Check this Google account is added as a test user, then try again.' : `Google sign-in failed (${error}).`);
   } else if (token && granted && !granted.includes('auth/drive')) {
     // Google's consent screen lets people untick Drive access - without it nothing can sync.
@@ -100,7 +100,7 @@ function consumeRedirectResult() {
 
 consumeRedirectResult();
 
-function redirectToGoogle(silent: boolean): Promise<never> {
+function redirectToGoogle(silent: boolean, loginHint?: string | null): Promise<never> {
   if (!CLIENT_ID) return Promise.reject(new Error('Google Drive sync is not configured for this build'));
   const state = crypto.randomUUID();
   localStorage.setItem(STATE_KEY, state);
@@ -116,6 +116,9 @@ function redirectToGoogle(silent: boolean): Promise<never> {
     // show the Reconnect button instead.
     prompt: silent ? 'none' : 'select_account',
   });
+  // Without a hint, a phone signed in to more than one Google account can't
+  // renew silently - Google wants to be told which one.
+  if (loginHint) params.set('login_hint', loginHint);
   window.location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
   // The page is navigating away - nothing after this should run.
   return new Promise<never>(() => {});
@@ -233,7 +236,7 @@ export const googleDriveProvider: CloudProvider = {
 
   hasToken: () => readToken() !== null,
 
-  async signIn(interactive, mayRedirect = false) {
+  async signIn(interactive, mayRedirect = false, loginHint = null) {
     if (interactive) return redirectToGoogle(false);
     if (readToken()) return;
     // Tokens only last an hour, so a returning visit usually needs a fresh
@@ -244,7 +247,7 @@ export const googleDriveProvider: CloudProvider = {
     const lastTry = Number(localStorage.getItem(SILENT_TRIED_KEY) ?? 0);
     if (mayRedirect && navigator.onLine && Date.now() - lastTry > SILENT_RETRY_MS) {
       localStorage.setItem(SILENT_TRIED_KEY, String(Date.now()));
-      return redirectToGoogle(true);
+      return redirectToGoogle(true, loginHint);
     }
     throw new AuthRequiredError();
   },

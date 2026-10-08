@@ -71,6 +71,8 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
   stateRef.current = state;
   const running = useRef(false);
   const rerun = useRef(false);
+  /** A sync queued while another ran may renew the sign-in (the app was just opened) */
+  const rerunOnStart = useRef(false);
   /** Set once a silent sign-in fails, so background syncs stop retrying until the user clicks */
   const authLapsed = useRef(false);
 
@@ -111,9 +113,11 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
 
   const sync = useCallback(async (onStart = false) => {
     const meta = readMeta();
-    if (!meta || authLapsed.current) return;
+    // A lapsed sign-in waits for a safe moment to renew (opening the app), rather than failing every few seconds.
+    if (!meta || (authLapsed.current && !onStart)) return;
     if (running.current) {
       rerun.current = true;
+      rerunOnStart.current ||= onStart;
       return;
     }
     running.current = true;
@@ -121,7 +125,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
     try {
       // Renewing an expired sign-in leaves the page, so only when the app opens -
       // otherwise a half-typed entry would be wiped. Later, show Reconnect instead.
-      await provider.signIn(false, onStart);
+      await provider.signIn(false, onStart, meta.accountEmail);
       let email = meta.accountEmail;
       if (!email) {
         email = await provider.getAccountEmail();
@@ -179,6 +183,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
       }
 
       await syncPhotos();
+      authLapsed.current = false;
       setError(null);
       setStatus('synced');
     } catch (e) {
@@ -189,7 +194,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
           setStatus('off');
         } else {
           authLapsed.current = true;
-          setError("Your Google sign-in has run out. Tap Sign in again to carry on syncing - nothing you've entered is lost.");
+          setError("Google sign-ins only last an hour, and this one has run out. It renews by itself next time you open the app, or tap Sign in again to do it now - nothing you've entered is lost.");
           setStatus('reconnect');
         }
       } else {
@@ -200,7 +205,9 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
       running.current = false;
       if (rerun.current) {
         rerun.current = false;
-        void sync();
+        const again = rerunOnStart.current;
+        rerunOnStart.current = false;
+        void sync(again);
       }
     }
   }, [recordSynced, replaceState, syncPhotos]);

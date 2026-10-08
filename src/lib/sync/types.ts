@@ -28,7 +28,7 @@ export interface CloudProvider {
    * it (that reloads the page, so only when nothing could be half-typed), and
    * rejects with AuthRequiredError if the user has to act.
    */
-  signIn(interactive: boolean, mayRedirect?: boolean): Promise<void>;
+  signIn(interactive: boolean, mayRedirect?: boolean, loginHint?: string | null): Promise<void>;
   signOut(): Promise<void>;
   getMeta(): Promise<RemoteFileMeta | null>;
   download(meta: RemoteFileMeta): Promise<string>;

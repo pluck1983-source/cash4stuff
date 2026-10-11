@@ -6,7 +6,8 @@ import { kg, money, parseNumber, percent, shortDate } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
 import { Button, Card, Empty, Input, LinkButton, PageHeader, Select, Stat } from '../components/ui';
 import { ItemCard } from '../components/ItemCard';
-import { OPEN_QUICK_ENTRY_KEY, PickupForm, REPEAT_SELLER_KEY } from './Pickups';
+import { OPEN_QUICK_ENTRY_KEY, PickupForm, REPEAT_SELLER_KEY, ResolveBar } from './Pickups';
+import { sellerPickups } from '../lib/sellers';
 import { QuickEntry } from '../components/QuickEntry';
 import { AuditTrail, askVoidReason } from '../components/Records';
 import { Photo } from '../components/Photo';
@@ -123,6 +124,11 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
         </Button>
       </div>
       {quickEntry && <QuickEntry state={state} actions={actions} pickup={pickup} />}
+      {pickup.voidedAt === null && (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+          <ResolveBar pickups={sellerPickups(state.pickups, pickup.id)} actions={actions} />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">

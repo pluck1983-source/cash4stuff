@@ -257,6 +257,7 @@ export function normaliseState(raw: unknown): AppState {
       signaturePhotoId: typeof p.signaturePhotoId === 'string' ? p.signaturePhotoId : null,
       paperSlipSigned: p.paperSlipSigned === true,
       notes: str(p.notes),
+      resolvedAt: typeof p.resolvedAt === 'string' ? p.resolvedAt : null,
       ...audited(p, now),
       updatedAt: str(p.updatedAt, EPOCH),
     };

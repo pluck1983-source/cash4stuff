@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { groupBySeller, sellerKey } from '../lib/sellers';
 import type { AppState, Audited, Handover, PaymentMethod, Pickup } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
@@ -32,7 +32,7 @@ function previousSellers(pickups: Pickup[]): Map<string, SellerDetails> {
 
 const PAYMENT_KEY = 'cash4stuff-last-payment-method';
 
-type PickupDraft = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber'>;
+type PickupDraft = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber' | 'resolvedAt'>;
 
 /** "12 High Street\nLeeds" or "12 High Street, Leeds" -> "12 High Street" */
 function firstAddressLine(address: string): string {
@@ -278,9 +278,14 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
         <Empty>No pickups yet.</Empty>
       ) : (
         <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {groupBySeller(pickups).map((group) =>
-            group.length === 1 ? <PickupCard key={group[0].id} state={state} pickup={group[0]} /> : <SellerGroup key={group[0].id} state={state} pickups={group} />,
-          )}
+          {groupBySeller(pickups).map((group) => {
+            const footer = <ResolveBar pickups={group} actions={actions} />;
+            return group.length === 1 ? (
+              <PickupCard key={group[0].id} state={state} pickup={group[0]} footer={footer} />
+            ) : (
+              <SellerGroup key={group[0].id} state={state} pickups={group} footer={footer} />
+            );
+          })}
         </div>
       )}
       {voided.length > 0 && (
@@ -303,12 +308,39 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
   );
 }
 
-function PickupCard({ state, pickup: p, inGroup = false }: { state: AppState; pickup: Pickup; inGroup?: boolean }) {
-  const s = pickupStats(state, p);
+/**
+ * "All items added" for a seller: their pickups stop being offered when
+ * adding items. Undo brings them back.
+ */
+export function ResolveBar({ pickups, actions }: { pickups: Pickup[]; actions: AppActions }) {
+  const resolved = pickups.every((p) => p.resolvedAt !== null);
   return (
+    <div className="flex items-center justify-between gap-2 text-xs">
+      {resolved ? (
+        <>
+          <span className="font-medium text-emerald-700 dark:text-emerald-400">✓ All items added</span>
+          <button type="button" className="text-slate-500 underline" onClick={() => actions.setSellerResolved(pickups[0].id, false)}>
+            Undo
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="text-slate-500">Still adding items</span>
+          <button type="button" className="font-medium text-brand-700 underline dark:text-brand-400" onClick={() => actions.setSellerResolved(pickups[0].id, true)}>
+            Mark all items added
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PickupCard({ state, pickup: p, inGroup = false, footer }: { state: AppState; pickup: Pickup; inGroup?: boolean; footer?: ReactNode }) {
+  const s = pickupStats(state, p);
+  const body = (
     <a
       href={routeHref({ name: 'pickup', id: p.id })}
-      className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-400 dark:border-slate-800 dark:bg-slate-900"
+      className={`block p-4 ${inGroup ? 'rounded-xl border border-slate-200 bg-white hover:border-brand-400 dark:border-slate-800 dark:bg-slate-900' : ''}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -339,42 +371,52 @@ function PickupCard({ state, pickup: p, inGroup = false }: { state: AppState; pi
       </div>
     </a>
   );
+  if (inGroup) return body;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white hover:border-brand-400 dark:border-slate-800 dark:bg-slate-900">
+      {body}
+      {footer && <div className="border-t border-slate-100 px-4 py-2 dark:border-slate-800">{footer}</div>}
+    </div>
+  );
 }
 
 /** A repeat seller's pickups under one heading, newest first - tap to open */
-function SellerGroup({ state, pickups }: { state: AppState; pickups: Pickup[] }) {
+function SellerGroup({ state, pickups, footer }: { state: AppState; pickups: Pickup[]; footer?: ReactNode }) {
   const latest = pickups[0];
   const stats = pickups.map((p) => pickupStats(state, p));
   const paid = stats.reduce((t, s) => t + s.totalCost, 0);
   const profit = stats.reduce((t, s) => t + s.realisedProfit, 0);
   const weight = pickups.reduce((t, p) => t + p.weightKg, 0);
   return (
-    <details className="group rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-2 p-4 [&::-webkit-details-marker]:hidden">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-slate-900 dark:text-slate-50">{latest.reference}</span>
-            <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800 dark:bg-brand-950 dark:text-brand-200">{pickups.length} pickups</span>
+    <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-start justify-between gap-2 p-4 [&::-webkit-details-marker]:hidden">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="truncate font-medium text-slate-900 dark:text-slate-50">{latest.reference}</span>
+              <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800 dark:bg-brand-950 dark:text-brand-200">{pickups.length} pickups</span>
+            </div>
+            {(latest.sellerAddress || latest.sellerPostcode) && (
+              <div className="truncate text-xs text-slate-500">{[firstAddressLine(latest.sellerAddress), latest.sellerPostcode].filter(Boolean).join(', ')}</div>
+            )}
+            <div className="text-xs text-slate-500">
+              Last {shortDate(latest.date)} · {kg(weight)} · cost {money(paid)}
+            </div>
           </div>
-          {(latest.sellerAddress || latest.sellerPostcode) && (
-            <div className="truncate text-xs text-slate-500">{[firstAddressLine(latest.sellerAddress), latest.sellerPostcode].filter(Boolean).join(', ')}</div>
-          )}
-          <div className="text-xs text-slate-500">
-            Last {shortDate(latest.date)} · {kg(weight)} · cost {money(paid)}
+          <div className="flex shrink-0 items-start gap-2">
+            <div className={`text-right text-sm font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(profit)}</div>
+            <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-180">
+              ▾
+            </span>
           </div>
+        </summary>
+        <div className="space-y-2 border-t border-slate-100 p-2 dark:border-slate-800">
+          {pickups.map((p) => (
+            <PickupCard key={p.id} state={state} pickup={p} inGroup />
+          ))}
         </div>
-        <div className="flex shrink-0 items-start gap-2">
-          <div className={`text-right text-sm font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(profit)}</div>
-          <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-180">
-            ▾
-          </span>
-        </div>
-      </summary>
-      <div className="space-y-2 border-t border-slate-100 p-2 dark:border-slate-800">
-        {pickups.map((p) => (
-          <PickupCard key={p.id} state={state} pickup={p} inGroup />
-        ))}
-      </div>
-    </details>
+      </details>
+      {footer && <div className="border-t border-slate-100 px-4 py-2 dark:border-slate-800">{footer}</div>}
+    </div>
   );
 }

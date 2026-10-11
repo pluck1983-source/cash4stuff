@@ -11,6 +11,7 @@ import { DashboardView } from './views/Dashboard';
 import { PickupsView } from './views/Pickups';
 import { PickupDetailView } from './views/PickupDetail';
 import { AddItemView } from './views/AddItem';
+import { BulkAddView } from './views/BulkAdd';
 import { StockView } from './views/Stock';
 import { ItemDetailView } from './views/ItemDetail';
 import { MoneyView } from './views/Money';
@@ -19,6 +20,7 @@ import { FinanceView } from './views/Finance';
 import { liveState } from './lib/audit';
 import { BottomTabs, NAV, NavIcon, TAB_SECTIONS, type Section } from './components/Nav';
 import { useNavOrder } from './lib/navOrder';
+import { useToast } from './lib/toast';
 import { AdminView } from './views/Admin';
 
 
@@ -27,6 +29,7 @@ function sectionOf(route: Route): Section {
     case 'pickup':
       return 'pickups';
     case 'add-item':
+    case 'add-photos':
       return 'add';
     case 'item':
       return 'stock';
@@ -44,6 +47,7 @@ export default function App() {
   const tabs = tabOrder.map((sec) => NAV.find((n) => n.section === sec)!);
   const route = useRoute();
   const isDesktop = useIsDesktop();
+  const toastMessage = useToast();
 
   const signOut = useCallback(
     async (wipeDevice: boolean) => {
@@ -77,6 +81,9 @@ export default function App() {
       break;
     case 'add-item':
       view = <AddItemView key={route.pickupId ?? 'none'} state={state} actions={actions} pickupId={route.pickupId} />;
+      break;
+    case 'add-photos':
+      view = <BulkAddView key={route.pickupId ?? 'none'} state={state} actions={actions} pickupId={route.pickupId} />;
       break;
     case 'stock':
       view = <StockView state={state} />;
@@ -135,6 +142,15 @@ export default function App() {
     </div>
   );
 
+  const toast = toastMessage && (
+    <div
+      role="status"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabs-h)+1rem)] z-50 flex justify-center px-4 lg:bottom-6 lg:left-56"
+    >
+      <div className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900">{toastMessage}</div>
+    </div>
+  );
+
   if (isDesktop) {
     return (
       <div className="flex min-h-screen text-slate-900 dark:text-slate-100">
@@ -167,6 +183,7 @@ export default function App() {
           {syncProblem}
           {view}
         </main>
+        {toast}
       </div>
     );
   }
@@ -187,6 +204,7 @@ export default function App() {
         {view}
       </main>
       <BottomTabs tabs={tabs} section={section} />
+      {toast}
     </div>
   );
 }

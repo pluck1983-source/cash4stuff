@@ -3,7 +3,8 @@ import type { AppState, Item } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { itemCostMap, originalListPrice, pence } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
-import { navigate, routeHref } from '../lib/router';
+import { goBack, navigate, routeHref } from '../lib/router';
+import { showToast } from '../lib/toast';
 import { newId, todayIso } from '../lib/storage';
 import { savePhoto } from '../lib/photos';
 import { Button, Card, Chips, Empty, Field, Input, PageHeader, StatusBadge } from '../components/ui';
@@ -80,9 +81,14 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
     setSaving(true);
     try {
       actions.updateItem(await buildFromDraft(), item.photoId);
-    } finally {
+    } catch (e) {
       setSaving(false);
+      window.alert(e instanceof Error ? e.message : 'Could not save the changes');
+      return;
     }
+    // Close the page so it's clear the save went through.
+    showToast(`✓ Saved ${draft.name.trim() || draft.category}`);
+    goBack(pickup ? { name: 'pickup', id: pickup.id } : { name: 'stock' });
   }
 
   async function confirmSale(sale: Pick<Item, 'soldPrice' | 'soldDate' | 'salesChannel' | 'saleCosts'>) {

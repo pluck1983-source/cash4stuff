@@ -18,6 +18,11 @@ const PAYMENT_KEY = 'cash4stuff-last-payment-method';
 
 type PickupDraft = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber'>;
 
+/** "12 High Street\nLeeds" or "12 High Street, Leeds" -> "12 High Street" */
+function firstAddressLine(address: string): string {
+  return address.split(/\n|,/)[0].trim();
+}
+
 export function PickupForm({
   state,
   initial,
@@ -224,10 +229,12 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate font-medium text-slate-900 dark:text-slate-50">{p.reference}</div>
+                    {(p.sellerAddress || p.sellerPostcode) && (
+                      <div className="truncate text-xs text-slate-500">{[firstAddressLine(p.sellerAddress), p.sellerPostcode].filter(Boolean).join(', ')}</div>
+                    )}
                     <div className="text-xs text-slate-500">
                       {p.receiptNumber !== null && `No. ${p.receiptNumber} · `}
                       {shortDate(p.date)} · {p.handover === 'dropoff' ? 'drop-off · ' : ''}
-                      {p.sellerPostcode && `${p.sellerPostcode} · `}
                       {kg(p.weightKg)} · cost {money(s.totalCost)}
                     </div>
                   </div>

@@ -37,8 +37,10 @@ function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
     subcategory: last?.subcategory ?? '',
     gender: last?.gender ?? '',
     location: last?.location ?? { area: state.settings.storageAreas[0] ?? '', rack: '', box: '' },
+    sku: '',
     listPrice: '',
-    status: 'listed',
+    status: 'in_stock',
+    listedDate: '',
     notes: '',
     newPhoto: null,
     existingPhotoId: null,
@@ -77,9 +79,10 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
         gender: draft.gender,
         photoId,
         location: { area: draft.location.area, rack: draft.location.rack.trim(), box: draft.location.box.trim() },
+        sku: draft.sku.trim(),
         listPrice,
-        // "Listed" with no price yet just means it's waiting to be priced and listed.
-        status: draft.status === 'listed' && listPrice === null ? 'in_stock' : draft.status,
+        status: draft.status,
+        listedDate: draft.status === 'listed' ? draft.listedDate || null : null,
         soldPrice: null,
         soldDate: null,
         salesChannel: '',
@@ -89,7 +92,7 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
       localStorage.setItem(LAST_KEY, JSON.stringify({ category: draft.category, subcategory: draft.subcategory, gender: draft.gender, location: draft.location } satisfies LastDefaults));
       if (another) {
         setAdded((a) => [{ name: draft.name.trim() || draft.category, price: listPrice }, ...a]);
-        setDraft({ ...freshDraft(state, draft.pickupId), status: draft.status });
+        setDraft({ ...freshDraft(state, draft.pickupId), status: draft.status, listedDate: draft.listedDate });
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         navigate(draft.pickupId ? { name: 'pickup', id: draft.pickupId } : { name: 'stock' });

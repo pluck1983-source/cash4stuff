@@ -18,8 +18,10 @@ function toDraft(item: Item): ItemDraft {
     subcategory: item.subcategory,
     gender: item.gender,
     location: item.location,
+    sku: item.sku,
     listPrice: item.listPrice === null ? '' : String(item.listPrice),
     status: item.status,
+    listedDate: item.listedDate ?? '',
     notes: item.notes,
     newPhoto: null,
     existingPhotoId: item.photoId,
@@ -65,8 +67,11 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       gender: draft.gender,
       photoId,
       location: { area: draft.location.area, rack: draft.location.rack.trim(), box: draft.location.box.trim() },
+      // Cleared SKUs get the next automatic code again.
+      sku: draft.sku.trim(),
       listPrice: draftListPrice(draft),
       status: isSold ? 'sold' : draft.status,
+      listedDate: isSold ? item.listedDate : draft.status === 'listed' ? draft.listedDate || null : null,
       notes: draft.notes.trim(),
     };
   }
@@ -118,6 +123,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       <p className="-mt-3 mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
         {item.sku && <span className="rounded bg-slate-900 px-1.5 py-0.5 font-mono text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-900">{item.sku}</span>}
         <StatusBadge status={item.status} />
+        {item.status === 'listed' && item.listedDate && <span>since {shortDate(item.listedDate)}</span>}
         {pickup && (
           <a className="underline" href={routeHref({ name: 'pickup', id: pickup.id })}>
             {pickup.reference}
@@ -152,7 +158,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
         </div>
 
         <Card className="lg:order-1 lg:col-span-3" title="Details">
-          <ItemEditor state={state} draft={draft} onChange={setDraft} />
+          <ItemEditor state={state} draft={draft} onChange={setDraft} itemId={item.id} />
           <Button variant="primary" className="mt-5 w-full" disabled={saving} onClick={() => void saveDetails()}>
             Save changes
           </Button>

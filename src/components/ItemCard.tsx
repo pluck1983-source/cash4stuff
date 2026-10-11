@@ -1,6 +1,6 @@
 import type { Item, Pickup } from '../lib/types';
 import { categoryLabel, locationLabel } from '../lib/calc';
-import { money } from '../lib/format';
+import { money, shortDate } from '../lib/format';
 import { routeHref } from '../lib/router';
 import { Photo } from './Photo';
 import { StatusBadge } from './ui';
@@ -16,7 +16,11 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
       <div className="min-w-0 flex-1 py-0.5">
         <div className="flex items-start justify-between gap-2">
           <div className="truncate font-medium text-slate-900 dark:text-slate-50">{item.name || item.category}</div>
-          <div className="shrink-0 font-semibold tabular-nums text-slate-900 dark:text-slate-50">{money(price)}</div>
+          {price === null ? (
+            <div className="shrink-0 text-xs text-slate-400">No price</div>
+          ) : (
+            <div className="shrink-0 font-semibold tabular-nums text-slate-900 dark:text-slate-50">{money(price)}</div>
+          )}
         </div>
         <div className="truncate text-xs text-slate-500">
           {categoryLabel(item)}
@@ -27,7 +31,10 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
             {item.sku && <span className="mr-1 font-mono font-semibold text-slate-700 dark:text-slate-300">{item.sku}</span>}
             {locationLabel(item.location) || 'No location'}
           </span>
-          <StatusBadge status={item.status} />
+          <span className="flex shrink-0 items-center gap-1">
+            {item.status === 'listed' && item.listedDate && <span className="text-xs text-slate-500">{shortDate(item.listedDate)}</span>}
+            <StatusBadge status={item.status} />
+          </span>
         </div>
       </div>
     </a>

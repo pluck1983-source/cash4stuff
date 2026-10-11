@@ -24,6 +24,13 @@ describe('itemsToCsv', () => {
   });
 });
 
+describe('listed date', () => {
+  it('loads older items with no listed date', () => {
+    const s = normaliseState({ items: [{ id: 'a', status: 'listed' }, { id: 'b', status: 'listed', listedDate: '2026-10-11' }] });
+    expect(s.items.map((i) => i.listedDate)).toEqual([null, '2026-10-11']);
+  });
+});
+
 describe('price history', () => {
   it('starts history from the current price for older data', () => {
     const s = normaliseState({ items: [{ id: 'i1', listPrice: 12, createdAt: '2026-02-03T10:00:00.000Z' }] });

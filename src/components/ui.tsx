@@ -108,15 +108,16 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">{children}</div>;
 }
 
-export function Chips({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+/** grid: equal-width tiles in tidy rows, for longer lists like categories */
+export function Chips({ options, value, onChange, grid = false }: { options: string[]; value: string; onChange: (v: string) => void; grid?: boolean }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className={grid ? 'grid grid-cols-3 gap-1.5 sm:grid-cols-4' : 'flex flex-wrap gap-1.5'}>
       {options.map((o) => (
         <button
           key={o}
           type="button"
           onClick={() => onChange(o)}
-          className={`rounded-full border px-3 py-1.5 text-sm ${
+          className={`border text-sm ${grid ? 'flex min-h-10 items-center justify-center rounded-lg px-2 py-1.5 text-center leading-tight break-words' : 'rounded-full px-3 py-1.5'} ${
             o === value
               ? 'border-brand-600 bg-brand-600 text-white'
               : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'

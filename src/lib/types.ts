@@ -113,7 +113,7 @@ export type ItemStatus = 'in_stock' | 'listed' | 'sold' | 'written_off';
 
 export interface Item {
   id: string;
-  /** Stock code, e.g. TOP-0042 - given when added, never changed */
+  /** Stock code, e.g. TOP-0042 - given automatically when left blank, or typed in */
   sku: string;
   /** Null for stock not bought by weight (e.g. bought individually, or donated) */
   pickupId: string | null;
@@ -133,6 +133,8 @@ export interface Item {
   priceHistory: PricePoint[];
   /** Listed = live on a selling site; in_stock = stored but not live yet */
   status: ItemStatus;
+  /** ISO date it went up online; null if not listed or listed before this was recorded */
+  listedDate: string | null;
   soldPrice: number | null;
   /** ISO date */
   soldDate: string | null;

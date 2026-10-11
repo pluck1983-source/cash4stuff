@@ -49,7 +49,7 @@ describe('records export', () => {
   const books = {
     ...emptyState(),
     pickups: [
-      testPickup({ id: 'p1', date: '2026-05-01', receiptNumber: 1, weightKg: 10, amountPaid: 10.1, signaturePhotoId: 'sig' }),
+      testPickup({ id: 'p1', date: '2026-05-01', reference: 'Sarah Jones', sellerAddress: '12 High St', sellerPostcode: 'LS1 4AB', handover: 'dropoff', receiptNumber: 1, weightKg: 10, amountPaid: 10.1, signaturePhotoId: 'sig' }),
       testPickup({ id: 'p2', date: '2026-05-02', receiptNumber: 2, amountPaid: 99, voidedAt: '2026-05-03T00:00:00.000Z', voidReason: 'entered twice' }),
     ],
   };
@@ -59,6 +59,7 @@ describe('records export', () => {
     const lines = csv.trim().split('\r\n');
     expect(lines).toHaveLength(3);
     expect(lines[1]).toContain(',1010,10.10,');
+    expect(lines[1]).toContain('Sarah Jones,12 High St,LS1 4AB,drop-off,');
     expect(lines[1]).toContain('attachments/signature-00001.png');
     expect(lines[2]).toContain('entered twice');
   });

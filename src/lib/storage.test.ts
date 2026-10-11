@@ -24,6 +24,13 @@ describe('itemsToCsv', () => {
   });
 });
 
+describe('pickup seller details', () => {
+  it('loads older pickups as collected, with no address', () => {
+    const s = normaliseState({ pickups: [{ id: 'p', reference: 'Sarah, 12 High St' }] });
+    expect(s.pickups[0]).toMatchObject({ reference: 'Sarah, 12 High St', sellerAddress: '', sellerPostcode: '', handover: 'pickup' });
+  });
+});
+
 describe('listed date', () => {
   it('loads older items with no listed date', () => {
     const s = normaliseState({ items: [{ id: 'a', status: 'listed' }, { id: 'b', status: 'listed', listedDate: '2026-10-11' }] });

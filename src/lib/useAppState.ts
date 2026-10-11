@@ -17,7 +17,7 @@ type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId' | 'paymentMet
 type NewRecurring = Omit<RecurringCost, 'id' | 'updatedAt'>;
 type NewIncome = Omit<OtherIncome, 'id' | 'updatedAt' | keyof Audited>;
 
-const PICKUP_FIELDS: (keyof Pickup)[] = ['date', 'reference', 'weightKg', 'ratePerKg', 'costOverride', 'amountPaid', 'paymentMethod', 'bankRef', 'sellerContact', 'paperSlipSigned', 'signaturePhotoId', 'notes'];
+const PICKUP_FIELDS: (keyof Pickup)[] = ['date', 'reference', 'sellerAddress', 'sellerPostcode', 'handover', 'weightKg', 'ratePerKg', 'costOverride', 'amountPaid', 'paymentMethod', 'bankRef', 'sellerContact', 'paperSlipSigned', 'signaturePhotoId', 'notes'];
 const EXPENSE_FIELDS: (keyof Expense)[] = ['date', 'category', 'description', 'amount', 'paymentMethod', 'pickupId', 'attachmentIds'];
 const INCOME_FIELDS: (keyof OtherIncome)[] = ['date', 'kind', 'buyer', 'weightKg', 'description', 'amount', 'paymentMethod', 'pickupId'];
 const SALE_FIELDS: (keyof Item)[] = ['status', 'soldPrice', 'soldDate', 'salesChannel', 'saleCosts'];

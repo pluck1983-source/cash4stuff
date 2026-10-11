@@ -202,6 +202,14 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
             {paymentLabel(pickup.paymentMethod) || 'Not recorded'}
             {pickup.bankRef && ` · ref ${pickup.bankRef}`}
           </dd>
+          <dt className="text-slate-500">Collection</dt>
+          <dd>{pickup.handover === 'dropoff' ? 'Drop-off' : 'Pickup'}</dd>
+          {(pickup.sellerAddress || pickup.sellerPostcode) && (
+            <>
+              <dt className="text-slate-500">Address</dt>
+              <dd className="whitespace-pre-line break-words">{[pickup.sellerAddress, pickup.sellerPostcode].filter(Boolean).join('\n')}</dd>
+            </>
+          )}
           {pickup.sellerContact && (
             <>
               <dt className="text-slate-500">Seller contact</dt>

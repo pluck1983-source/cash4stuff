@@ -172,7 +172,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen pb-20 text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen pb-[calc(var(--tabs-h)+1rem)] text-slate-900 dark:text-slate-100">
       <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
         <a href={routeHref({ name: 'dashboard' })} className="flex min-w-0 flex-1 items-center" aria-label="Wardrobe to Wallet - home">
           <Wordmark className="text-xl" />

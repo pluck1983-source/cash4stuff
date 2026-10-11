@@ -30,6 +30,8 @@ function item(over: Partial<Item> = {}): Item {
     salesChannel: '',
     saleCosts: 0,
     history: [],
+    sku: '',
+    keywords: '',
     notes: '',
     createdAt: '2026-03-11T10:00:00.000Z',
     updatedAt: T,

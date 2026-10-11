@@ -341,7 +341,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
     if (filter.maxPrice !== null && (price ?? 0) > filter.maxPrice) return false;
     if (text) {
       const pickup = i.pickupId ? pickupsById.get(i.pickupId) : undefined;
-      const haystack = [i.name, i.category, i.subcategory, GENDER_LABELS[i.gender], i.notes, i.salesChannel, i.location.area, i.location.rack, i.location.box, pickup?.reference ?? '']
+      const haystack = [i.sku, i.name, i.keywords, i.category, i.subcategory, GENDER_LABELS[i.gender], i.notes, i.salesChannel, i.location.area, i.location.rack, i.location.box, pickup?.reference ?? '']
         .join(' ')
         .toLowerCase();
       if (!haystack.includes(text)) return false;

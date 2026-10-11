@@ -88,7 +88,7 @@ export function StockView({ state }: { state: AppState }) {
       />
 
       <div className="mb-3 flex gap-2">
-        <Input type="search" value={filter.text} onChange={(e) => setFilter({ text: e.target.value })} placeholder="Search name, notes, pickup, location…" />
+        <Input type="search" value={filter.text} onChange={(e) => setFilter({ text: e.target.value })} placeholder="Search SKU, name, keywords, location…" />
         {!isDesktop && (
           <Button onClick={() => setShowFilters((v) => !v)}>
             Filters{activeFilters > 0 && ` (${activeFilters})`}

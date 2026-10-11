@@ -32,6 +32,7 @@ function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
   return {
     pickupId,
     name: '',
+    keywords: '',
     category: last?.category ?? state.settings.categories[0] ?? 'Other',
     subcategory: last?.subcategory ?? '',
     gender: last?.gender ?? '',
@@ -70,6 +71,7 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
       actions.addItem({
         pickupId: draft.pickupId,
         name: draft.name.trim(),
+        keywords: draft.keywords.trim(),
         category: draft.category,
         subcategory: draft.subcategory,
         gender: draft.gender,

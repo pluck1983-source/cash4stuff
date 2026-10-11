@@ -13,6 +13,7 @@ function toDraft(item: Item): ItemDraft {
   return {
     pickupId: item.pickupId,
     name: item.name,
+    keywords: item.keywords,
     category: item.category,
     subcategory: item.subcategory,
     gender: item.gender,
@@ -58,6 +59,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       ...item,
       pickupId: draft.pickupId,
       name: draft.name.trim(),
+      keywords: draft.keywords.trim(),
       category: draft.category,
       subcategory: draft.subcategory,
       gender: draft.gender,
@@ -114,6 +116,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
         }
       />
       <p className="-mt-3 mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        {item.sku && <span className="rounded bg-slate-900 px-1.5 py-0.5 font-mono text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-900">{item.sku}</span>}
         <StatusBadge status={item.status} />
         {pickup && (
           <a className="underline" href={routeHref({ name: 'pickup', id: pickup.id })}>

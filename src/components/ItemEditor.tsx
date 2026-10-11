@@ -8,6 +8,7 @@ import { Photo, PhotoPicker } from './Photo';
 export interface ItemDraft {
   pickupId: string | null;
   name: string;
+  keywords: string;
   category: string;
   subcategory: string;
   gender: ItemGender;
@@ -81,6 +82,9 @@ export function ItemEditor({ state, draft, onChange, showPickup = true }: { stat
 
       <Field label="Name">
         <Input value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Levi's 501 jeans W32" />
+      </Field>
+      <Field label="Keywords (optional)" hint="Brand, colour, size, style - anything you might search for">
+        <Input value={draft.keywords} onChange={(e) => set({ keywords: e.target.value })} placeholder="e.g. denim blue straight leg" />
       </Field>
 
       <div>

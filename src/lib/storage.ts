@@ -265,8 +265,10 @@ export function normaliseState(raw: unknown): AppState {
     const createdAt = str(i.createdAt, now);
     return {
       id: str(i.id) || newId(),
+      sku: str(i.sku),
       pickupId: typeof i.pickupId === 'string' ? i.pickupId : null,
       name: str(i.name),
+      keywords: str(i.keywords),
       category: str(i.category, 'Other'),
       subcategory: str(i.subcategory),
       gender: i.gender === 'mens' || i.gender === 'womens' || i.gender === 'unisex' ? i.gender : '',
@@ -354,10 +356,10 @@ function csvCell(value: string | number | null): string {
 
 export function itemsToCsv(state: AppState, items: Item[]): string {
   const pickups = new Map(state.pickups.map((p) => [p.id, p]));
-  const header = ['Name', 'Category', 'Sub-category', 'For', 'Status', 'Pickup', 'Pickup date', 'Area', 'Rack', 'Box', 'List price', 'Sold price', 'Sold date', 'Channel', 'Sale costs', 'Notes'];
+  const header = ['SKU', 'Name', 'Keywords', 'Category', 'Sub-category', 'For', 'Status', 'Pickup', 'Pickup date', 'Area', 'Rack', 'Box', 'List price', 'Sold price', 'Sold date', 'Channel', 'Sale costs', 'Notes'];
   const rows = items.map((i) => {
     const p = i.pickupId ? pickups.get(i.pickupId) : undefined;
-    return [i.name, i.category, i.subcategory, GENDER_LABELS[i.gender], i.status, p?.reference ?? '', p?.date ?? '', i.location.area, i.location.rack, i.location.box, i.listPrice, i.soldPrice, i.soldDate, i.salesChannel, i.saleCosts, i.notes];
+    return [i.sku, i.name, i.keywords, i.category, i.subcategory, GENDER_LABELS[i.gender], i.status, p?.reference ?? '', p?.date ?? '', i.location.area, i.location.rack, i.location.box, i.listPrice, i.soldPrice, i.soldDate, i.salesChannel, i.saleCosts, i.notes];
   });
   return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
 }

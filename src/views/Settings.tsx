@@ -5,6 +5,8 @@ import { calculatedPickupCost } from '../lib/calc';
 import { money, parseNumber } from '../lib/format';
 import { downloadText, exportStateAsJson, importStateFromJson, todayIso } from '../lib/storage';
 import { routeHref } from '../lib/router';
+import { NAV, NavIcon, TAB_SECTIONS } from '../components/Nav';
+import { saveNavOrder, useNavOrder } from '../lib/navOrder';
 import { Button, Card, Field, Input, PageHeader, Select, TextArea } from '../components/ui';
 
 export function SettingsView({
@@ -77,6 +79,8 @@ export function SettingsView({
           only affects new pickups - each pickup keeps the rate and cost it was bought at.
         </p>
       </Card>
+
+      <TabOrderCard />
 
       <Card title="Purchase receipts">
         <p className="mb-3 text-sm text-slate-500">Printed at the top of the receipt the seller signs.</p>
@@ -173,5 +177,41 @@ export function SettingsView({
         </Card>
       )}
     </div>
+  );
+}
+
+/** Which tabs sit in the first five on a phone - the rest are a swipe away. Saved on this device. */
+function TabOrderCard() {
+  const order = useNavOrder(TAB_SECTIONS);
+  const move = (i: number, by: -1 | 1) => {
+    const next = [...order];
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    saveNavOrder(next);
+  };
+  return (
+    <Card title="Bottom tabs (phone)">
+      <p className="mb-3 text-sm text-slate-500">The first five show without swiping. Swipe the tab bar sideways for the rest. Saved on this device.</p>
+      <ol className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+        {order.map((section, i) => {
+          const tab = NAV.find((n) => n.section === section)!;
+          return (
+            <li key={section} className={`flex items-center gap-3 px-3 py-2 ${i === 5 ? 'border-t-2 border-dashed border-slate-300 dark:border-slate-600' : ''}`}>
+              <span className="w-4 text-xs tabular-nums text-slate-400">{i + 1}</span>
+              <NavIcon>{tab.icon}</NavIcon>
+              <span className="flex-1 text-sm">{tab.section === 'add' ? 'Add item' : tab.label}</span>
+              <button type="button" className="rounded-md px-2 py-1 text-slate-500 disabled:opacity-30" disabled={i === 0} aria-label={`Move ${tab.label} up`} onClick={() => move(i, -1)}>
+                ↑
+              </button>
+              <button type="button" className="rounded-md px-2 py-1 text-slate-500 disabled:opacity-30" disabled={i === order.length - 1} aria-label={`Move ${tab.label} down`} onClick={() => move(i, 1)}>
+                ↓
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      <Button className="mt-3" onClick={() => saveNavOrder(null)}>
+        Reset to default order
+      </Button>
+    </Card>
   );
 }

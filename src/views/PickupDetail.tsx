@@ -8,10 +8,15 @@ import { Button, Card, Empty, Input, LinkButton, PageHeader, Select, Stat } from
 import { ItemCard } from '../components/ItemCard';
 import { OPEN_QUICK_ENTRY_KEY, PickupForm } from './Pickups';
 import { QuickEntry } from '../components/QuickEntry';
+import { AuditTrail, askVoidReason } from '../components/Records';
+import { Photo } from '../components/Photo';
+import { PurchaseReceipt } from '../components/PurchaseReceipt';
+import { paymentLabel } from '../lib/audit';
 
-export function PickupDetailView({ state, actions, id }: { state: AppState; actions: AppActions; id: string }) {
-  const pickup = state.pickups.find((p) => p.id === id);
+export function PickupDetailView({ state, books, actions, id }: { state: AppState; books: AppState; actions: AppActions; id: string }) {
+  const pickup = books.pickups.find((p) => p.id === id);
   const [editing, setEditing] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [quickEntry, setQuickEntry] = useState(() => sessionStorage.getItem(OPEN_QUICK_ENTRY_KEY) === id);
   useEffect(() => sessionStorage.removeItem(OPEN_QUICK_ENTRY_KEY), []);
   const [costCategory, setCostCategory] = useState('Fuel');
@@ -37,25 +42,40 @@ export function PickupDetailView({ state, actions, id }: { state: AppState; acti
         back={routeHref({ name: 'pickups' })}
         actions={
           <>
-            <Button onClick={() => setEditing((v) => !v)}>{editing ? 'Close' : 'Edit'}</Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (window.confirm(`Delete "${pickup.reference}"? Its ${items.length} item(s) are kept but no longer linked to a pickup.`)) {
-                  actions.deletePickup(pickup.id);
-                  navigate({ name: 'pickups' }, true);
-                }
-              }}
-            >
-              Delete
-            </Button>
+            {pickup.voidedAt === null ? (
+              <>
+                <Button onClick={() => setShowReceipt(true)}>Receipt</Button>
+                <Button onClick={() => setEditing((v) => !v)}>{editing ? 'Close' : 'Edit'}</Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    const reason = askVoidReason('purchase');
+                    if (reason) {
+                      actions.voidPickup(pickup.id, reason);
+                      navigate({ name: 'pickups' }, true);
+                    }
+                  }}
+                >
+                  Void
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => actions.restorePickup(pickup.id)}>Restore</Button>
+            )}
           </>
         }
       />
       <p className="-mt-3 mb-4 text-sm text-slate-500">
-        {shortDate(pickup.date)} · {kg(pickup.weightKg)}
+        {pickup.receiptNumber !== null && `Receipt no. ${pickup.receiptNumber} · `}
+        {shortDate(pickup.date)} · {kg(pickup.weightKg)} at {money(pickup.ratePerKg)}/kg · paid {money(pickup.amountPaid)}
+        {pickup.paymentMethod && ` by ${paymentLabel(pickup.paymentMethod).toLowerCase()}`}
         {pickup.notes && ` · ${pickup.notes}`}
       </p>
+      {pickup.voidedAt !== null && (
+        <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          This purchase is <strong>voided</strong> and left out of every total{pickup.voidReason && `: ${pickup.voidReason}`}. Restore it if that was a mistake.
+        </p>
+      )}
 
       {editing && (
         <Card className="mb-4" title="Edit pickup">
@@ -120,7 +140,15 @@ export function PickupDetailView({ state, actions, id }: { state: AppState; acti
                   </span>
                   <span className="flex items-center gap-2 tabular-nums">
                     {money(e.amount)}
-                    <button type="button" className="text-slate-400 hover:text-red-600" aria-label="Remove cost" onClick={() => actions.deleteExpense(e.id)}>
+                    <button
+                      type="button"
+                      className="text-slate-400 hover:text-red-600"
+                      aria-label="Void cost"
+                      onClick={() => {
+                        const reason = askVoidReason('cost');
+                        if (reason) actions.voidExpense(e.id, reason);
+                      }}
+                    >
                       ✕
                     </button>
                   </span>
@@ -148,6 +176,48 @@ export function PickupDetailView({ state, actions, id }: { state: AppState; acti
           </form>
         </Card>
       </div>
+
+      {showReceipt && (
+        <PurchaseReceipt
+          pickup={pickup}
+          settings={state.settings}
+          onSign={(signaturePhotoId) => actions.updatePickup({ ...pickup, signaturePhotoId })}
+          onClose={() => setShowReceipt(false)}
+        />
+      )}
+      <Card
+        title="Purchase record"
+        className="mt-4"
+        action={
+          <Button variant="primary" onClick={() => setShowReceipt(true)}>
+            {pickup.signaturePhotoId ? 'Seller receipt' : 'Receipt & signature'}
+          </Button>
+        }
+      >
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+          <dt className="text-slate-500">Receipt no.</dt>
+          <dd>{pickup.receiptNumber ?? 'None (entered before receipt numbers)'}</dd>
+          <dt className="text-slate-500">Paid by</dt>
+          <dd>
+            {paymentLabel(pickup.paymentMethod) || 'Not recorded'}
+            {pickup.bankRef && ` · ref ${pickup.bankRef}`}
+          </dd>
+          {pickup.sellerContact && (
+            <>
+              <dt className="text-slate-500">Seller contact</dt>
+              <dd className="break-words">{pickup.sellerContact}</dd>
+            </>
+          )}
+          <dt className="text-slate-500">Signed</dt>
+          <dd>{pickup.signaturePhotoId ? 'On screen' : pickup.paperSlipSigned ? 'Paper slip' : 'No'}</dd>
+        </dl>
+        {pickup.signaturePhotoId && (
+          <Photo id={pickup.signaturePhotoId} alt="Seller signature" contain className="mt-3 h-28 rounded-lg border border-slate-200 bg-white dark:border-slate-700" />
+        )}
+        <div className="mt-3">
+          <AuditTrail createdAt={pickup.createdAt} history={pickup.history} />
+        </div>
+      </Card>
     </div>
   );
 }

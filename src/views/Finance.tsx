@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import type { AppState, TaxExpenseBox } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { money, parseNumber, percent, shortDate } from '../lib/format';
-import { downloadText, todayIso } from '../lib/storage';
+import { downloadBlob, downloadText, todayIso } from '../lib/storage';
+import { recordsZip } from '../lib/records';
+import { loadPhotoBlob } from '../lib/photos';
 import { EXPENSE_BOX_LABELS, RATES, mtdNote, taxEstimate, taxYearLedgerCsv, taxYearsWithData, tradingSummary } from '../lib/tax';
 import { Button, Card, Field, Input, PageHeader, Select, Stat } from '../components/ui';
 
@@ -15,7 +17,7 @@ function Row({ label, value, strong = false, muted = false }: { label: string; v
   );
 }
 
-export function FinanceView({ state, actions }: { state: AppState; actions: AppActions }) {
+export function FinanceView({ state, books, actions }: { state: AppState; books: AppState; actions: AppActions }) {
   const today = todayIso();
   const years = useMemo(() => taxYearsWithData(state, today), [state, today]);
   const [yearId, setYearId] = useState(years[0].id);
@@ -30,6 +32,18 @@ export function FinanceView({ state, actions }: { state: AppState; actions: AppA
   const [grossPay, setGrossPay] = useState('');
   const [taxPaid, setTaxPaid] = useState('');
   const [showMapping, setShowMapping] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  async function exportRecords() {
+    setExporting(true);
+    try {
+      const { zip, missing } = await recordsZip(books, year, loadPhotoBlob);
+      downloadBlob(`wardrobe-to-wallet-records-${year.id}.zip`, new Blob([zip as BlobPart], { type: 'application/zip' }));
+      if (missing) window.alert(`${missing} signature image(s) couldn't be loaded (not on this device and not synced yet) - the rest of the records are in the file.`);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -44,7 +58,10 @@ export function FinanceView({ state, actions }: { state: AppState; actions: AppA
                 </option>
               ))}
             </Select>
-            <Button onClick={() => downloadText(`cash4stuff-ledger-${year.id}.csv`, taxYearLedgerCsv(state, year), 'text/csv')}>Export ledger CSV</Button>
+            <Button variant="primary" onClick={() => void exportRecords()} disabled={exporting}>
+              {exporting ? 'Preparing…' : 'Records for accountant (ZIP)'}
+            </Button>
+            <Button onClick={() => downloadText(`cash4stuff-ledger-${year.id}.csv`, taxYearLedgerCsv(state, year), 'text/csv')}>Ledger CSV</Button>
             <Button onClick={() => window.print()}>Print</Button>
           </>
         }
@@ -196,7 +213,13 @@ export function FinanceView({ state, actions }: { state: AppState; actions: AppA
           <li>If turnover is £1,000 or less and you claim the trading allowance, you may not need to register for self assessment for the business at all.</li>
           <li>Selling sites (Vinted, eBay, Depop…) send HMRC details of sellers with 30+ sales or about £1,700+ of sales in a calendar year - make sure the turnover here matches.</li>
           {mtd && <li>{mtd}</li>}
-          <li>Keep records (this app's data and the ledger export) for at least 5 years after the 31 January filing deadline.</li>
+          <li>
+            Figures are on the <strong>cash basis</strong>: money counts when it's paid or received, and unsold stock isn't valued - its cost was already claimed when it was bought.
+          </li>
+          <li>
+            Keep the records ZIP for each year until at least 31 January {Number(year.id.slice(0, 4)) + 7} (five years after the {year.label} filing deadline). This app is a record-keeping tool, not
+            Making Tax Digital software - the ZIP is what goes to an accountant or MTD software.
+          </li>
         </ul>
       </Card>
     </div>

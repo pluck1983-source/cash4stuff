@@ -99,6 +99,10 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
           <Button
             variant="danger"
             onClick={() => {
+              if (item.status === 'sold') {
+                window.alert("A sold item is part of the business records, so it can't be deleted. If the sale didn't happen, use Undo sale first - that change is logged.");
+                return;
+              }
               if (window.confirm('Delete this item? This removes it everywhere, including its photo.')) {
                 actions.deleteItem(item);
                 navigate(pickup ? { name: 'pickup', id: pickup.id } : { name: 'stock' }, true);

@@ -1,14 +1,22 @@
 import { useState } from 'react';
-import type { AppState, Pickup } from '../lib/types';
+import type { AppState, Audited, PaymentMethod, Pickup } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { calculatedPickupCost, pickupStats, roundWeight } from '../lib/calc';
+import { pickupStats, roundWeight } from '../lib/calc';
+import { purchaseCost } from '../lib/audit';
+import { savePhoto } from '../lib/photos';
+import { Photo } from '../components/Photo';
+import { PaymentChips, SignaturePad, VoidedNote } from '../components/Records';
 import { kg, money, parseNumber, percent, shortDate } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
-import { todayIso } from '../lib/storage';
+import { newId, todayIso } from '../lib/storage';
 import { Button, Card, Empty, Field, Input, PageHeader, TextArea } from '../components/ui';
 
 /** Tells the pickup page to open with quick entry showing */
 export const OPEN_QUICK_ENTRY_KEY = 'cash4stuff-open-quick-entry';
+
+const PAYMENT_KEY = 'cash4stuff-last-payment-method';
+
+type PickupDraft = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber'>;
 
 export function PickupForm({
   state,
@@ -18,68 +26,120 @@ export function PickupForm({
 }: {
   state: AppState;
   initial?: Pickup;
-  onSave: (data: Omit<Pickup, 'id' | 'createdAt' | 'updatedAt'>, next: 'photo' | 'quick') => void;
+  onSave: (data: PickupDraft, next: 'photo' | 'quick') => void;
   onCancel: () => void;
 }) {
   const { settings } = state;
   const [date, setDate] = useState(initial?.date ?? todayIso());
   const [reference, setReference] = useState(initial?.reference ?? '');
   const [weight, setWeight] = useState(initial ? String(initial.weightKg) : '');
+  const [rate, setRate] = useState(String(initial?.ratePerKg ?? settings.costPerKg));
   const [override, setOverride] = useState(initial?.costOverride != null ? String(initial.costOverride) : '');
+  const [payment, setPayment] = useState<PaymentMethod>(initial?.paymentMethod ?? ((localStorage.getItem(PAYMENT_KEY) as PaymentMethod | null) || 'cash'));
+  const [bankRef, setBankRef] = useState(initial?.bankRef ?? '');
+  const [contact, setContact] = useState(initial?.sellerContact ?? '');
+  const [paperSlip, setPaperSlip] = useState(initial?.paperSlipSigned ?? false);
+  const [signature, setSignature] = useState<Blob | null>(null);
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [saving, setSaving] = useState(false);
 
   const weightKg = parseNumber(weight) ?? 0;
+  const ratePerKg = parseNumber(rate) ?? settings.costPerKg;
   const rounded = roundWeight(weightKg, settings.weightStepKg, settings.weightRounding);
-  const calculated = calculatedPickupCost(weightKg, settings);
+  const calculated = purchaseCost(weightKg, ratePerKg, settings);
   const overrideValue = parseNumber(override);
+  const signed = Boolean(initial?.signaturePhotoId);
 
   return (
     <form
       className="space-y-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        onSave({
-          date,
-          reference: reference.trim() || `Pickup ${shortDate(date)}`,
-          weightKg,
-          costOverride: overrideValue,
-          notes: notes.trim(),
-        }, submitter?.value === 'quick' ? 'quick' : 'photo');
+        setSaving(true);
+        let signaturePhotoId = initial?.signaturePhotoId ?? null;
+        if (signature) {
+          signaturePhotoId = newId();
+          await savePhoto(signaturePhotoId, signature, false);
+        }
+        if (payment) localStorage.setItem(PAYMENT_KEY, payment);
+        onSave(
+          {
+            date,
+            reference: reference.trim() || `Pickup ${shortDate(date)}`,
+            weightKg,
+            ratePerKg,
+            costOverride: overrideValue,
+            paymentMethod: payment,
+            bankRef: payment === 'bank' ? bankRef.trim() : '',
+            sellerContact: contact.trim(),
+            paperSlipSigned: paperSlip,
+            signaturePhotoId,
+            notes: notes.trim(),
+          },
+          submitter?.value === 'quick' ? 'quick' : 'photo',
+        );
       }}
     >
-      <Field label="Who / where" hint="A name, an address or just a reference - whatever helps you recognise it later">
-        <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Sarah, 12 High St" autoFocus={!initial} />
+      <Field label="Seller / where" hint="Their name, or an address - whatever identifies who you bought from">
+        <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Sarah Jones, 12 High St" autoFocus={!initial} />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Date" hint={!initial ? 'Back-date it for stock you already have' : undefined}>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-        </Field>
         <Field label="Weight (kg)">
           <Input type="number" inputMode="decimal" step="0.01" min="0" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0.0" />
+        </Field>
+        <Field label="Rate (£/kg)">
+          <Input type="number" inputMode="decimal" step="0.01" min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
         </Field>
       </div>
       <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
         {weightKg > 0 ? (
           <>
-            {kg(weightKg)} → <strong>{kg(rounded)}</strong> × {money(settings.costPerKg)}/kg = <strong>{money(calculated)}</strong>
+            {kg(weightKg)} → <strong>{kg(rounded)}</strong> × {money(ratePerKg)}/kg = <strong>{money(calculated)}</strong>
           </>
         ) : (
-          <>Enter the weight to see what to pay ({money(settings.costPerKg)}/kg, rounded to {settings.weightStepKg} kg)</>
+          <>Enter the weight to see what to pay ({money(ratePerKg)}/kg, rounded to {settings.weightStepKg} kg)</>
         )}
       </div>
-      <Field label="Actually paid (optional)" hint="If you paid something other than the calculated amount - or, for stock you already had, what you paid when you don't know the weight">
+      <Field label="Paid by">
+        <PaymentChips value={payment} onChange={setPayment} />
+      </Field>
+      {payment === 'bank' && (
+        <Field label="Bank reference (optional)" hint="What it shows as on the statement, so it can be matched up">
+          <Input value={bankRef} onChange={(e) => setBankRef(e.target.value)} />
+        </Field>
+      )}
+      <Field label="Seller's signature" hint="Proves the purchase was real - the strongest evidence if HMRC ever asks">
+        {signed && !signature ? (
+          <Photo id={initial?.signaturePhotoId ?? null} alt="Seller signature" contain className="h-28 rounded-lg border border-slate-200 bg-white dark:border-slate-700" />
+        ) : (
+          <SignaturePad onChange={setSignature} />
+        )}
+        <label className="mt-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+          <input type="checkbox" checked={paperSlip} onChange={(e) => setPaperSlip(e.target.checked)} className="h-4 w-4" />
+          Signed a paper slip instead
+        </label>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Date" hint={!initial ? 'Back-date it for stock you already have' : undefined}>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+        </Field>
+        <Field label="Seller phone / email (optional)">
+          <Input value={contact} onChange={(e) => setContact(e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Actually paid (optional)" hint="If you paid something other than weight × rate - or, for stock you already had, what you paid when you don't know the weight">
         <Input type="number" inputMode="decimal" step="0.01" min="0" value={override} onChange={(e) => setOverride(e.target.value)} placeholder={money(calculated)} />
       </Field>
       <Field label="Notes">
         <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="primary" className="flex-1" value="photo">
+        <Button type="submit" variant="primary" className="flex-1" value="photo" disabled={saving}>
           {initial ? 'Save pickup' : 'Save & add items'}
         </Button>
         {!initial && (
-          <Button type="submit" value="quick" className="flex-1">
+          <Button type="submit" value="quick" className="flex-1" disabled={saving}>
             Save & quick entry (existing stock)
           </Button>
         )}
@@ -89,9 +149,10 @@ export function PickupForm({
   );
 }
 
-export function PickupsView({ state, actions }: { state: AppState; actions: AppActions }) {
+export function PickupsView({ state, books, actions }: { state: AppState; books: AppState; actions: AppActions }) {
   const [adding, setAdding] = useState(state.pickups.length === 0);
   const pickups = [...state.pickups].sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
+  const voided = books.pickups.filter((p) => p.voidedAt !== null);
 
   return (
     <div>
@@ -139,6 +200,7 @@ export function PickupsView({ state, actions }: { state: AppState; actions: AppA
                   <div className="min-w-0">
                     <div className="truncate font-medium text-slate-900 dark:text-slate-50">{p.reference}</div>
                     <div className="text-xs text-slate-500">
+                      {p.receiptNumber !== null && `No. ${p.receiptNumber} · `}
                       {shortDate(p.date)} · {kg(p.weightKg)} · cost {money(s.totalCost)}
                     </div>
                   </div>
@@ -160,6 +222,22 @@ export function PickupsView({ state, actions }: { state: AppState; actions: AppA
             );
           })}
         </div>
+      )}
+      {voided.length > 0 && (
+        <details className="mt-6 text-sm">
+          <summary className="cursor-pointer text-slate-500">Voided pickups ({voided.length}) - kept for the records, not counted</summary>
+          <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+            {voided.map((p) => (
+              <li key={p.id} className="py-2">
+                <a href={routeHref({ name: 'pickup', id: p.id })} className="text-slate-500 line-through">
+                  {p.receiptNumber !== null && `No. ${p.receiptNumber} · `}
+                  {p.reference} · {shortDate(p.date)} · {money(p.amountPaid)}
+                </a>{' '}
+                <VoidedNote voidedAt={p.voidedAt} reason={p.voidReason} />
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </div>
   );

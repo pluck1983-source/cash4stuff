@@ -1,5 +1,6 @@
 import { GENDER_LABELS } from './calc';
-import type { AppState, Employment, Expense, RecurringCost, Item, OtherIncome, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
+import { purchaseCost } from './audit';
+import type { AppState, Audited, EditRecord, Employment, Expense, RecurringCost, Item, OtherIncome, PaymentMethod, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
 
 const STORAGE_KEY = 'cash4stuff-state-v1';
 
@@ -54,6 +55,10 @@ export const DEFAULT_SETTINGS: Settings = {
     'Other stock purchase': 'goods',
     Other: 'other',
   },
+  accountingBasis: 'cash',
+  businessName: '',
+  traderName: '',
+  businessAddress: '',
 };
 
 const TAX_BOXES: TaxExpenseBox[] = ['goods', 'travel', 'staff', 'premises', 'repairs', 'office', 'advertising', 'interest', 'financial', 'professional', 'other', 'not_allowable'];
@@ -184,6 +189,22 @@ function tombstones(value: unknown): Record<string, string> {
   return result;
 }
 
+function paymentMethod(value: unknown): PaymentMethod {
+  return value === 'cash' || value === 'bank' || value === 'other' ? value : '';
+}
+
+function audited(r: Record<string, unknown>, createdFallback: string): Audited {
+  const history: EditRecord[] = records(r.history)
+    .filter((h) => typeof h.at === 'string' && typeof h.changes === 'object' && h.changes !== null)
+    .map((h) => ({ at: h.at as string, changes: h.changes as EditRecord['changes'] }));
+  return {
+    createdAt: str(r.createdAt, createdFallback),
+    voidedAt: typeof r.voidedAt === 'string' ? r.voidedAt : null,
+    voidReason: str(r.voidReason),
+    history,
+  };
+}
+
 function records(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null) : [];
 }
@@ -207,18 +228,36 @@ export function normaliseState(raw: unknown): AppState {
     salesChannels: strList(s.salesChannels, DEFAULT_SETTINGS.salesChannels),
     expenseCategories: strList(s.expenseCategories, DEFAULT_SETTINGS.expenseCategories),
     expenseTaxBoxes: taxBoxes(s.expenseTaxBoxes),
+    accountingBasis: s.accountingBasis === 'accruals' ? 'accruals' : 'cash',
+    businessName: str(s.businessName),
+    traderName: str(s.traderName),
+    businessAddress: str(s.businessAddress),
   };
   const now = new Date().toISOString();
-  const pickups: Pickup[] = records(r.pickups).map((p) => ({
-    id: str(p.id) || newId(),
-    date: str(p.date, now.slice(0, 10)),
-    reference: str(p.reference),
-    weightKg: num(p.weightKg),
-    costOverride: numOrNull(p.costOverride),
-    notes: str(p.notes),
-    createdAt: str(p.createdAt, now),
-    updatedAt: str(p.updatedAt, EPOCH),
-  }));
+  const pickups: Pickup[] = records(r.pickups).map((p) => {
+    const weightKg = num(p.weightKg);
+    const costOverride = numOrNull(p.costOverride);
+    // Older pickups were priced at whatever the rate was set to - fix them at today's rate, once.
+    const ratePerKg = num(p.ratePerKg, settings.costPerKg);
+    return {
+      id: str(p.id) || newId(),
+      date: str(p.date, now.slice(0, 10)),
+      reference: str(p.reference),
+      weightKg,
+      costOverride,
+      ratePerKg,
+      amountPaid: num(p.amountPaid, costOverride ?? purchaseCost(weightKg, ratePerKg, settings)),
+      paymentMethod: paymentMethod(p.paymentMethod),
+      bankRef: str(p.bankRef),
+      sellerContact: str(p.sellerContact),
+      receiptNumber: numOrNull(p.receiptNumber),
+      signaturePhotoId: typeof p.signaturePhotoId === 'string' ? p.signaturePhotoId : null,
+      paperSlipSigned: p.paperSlipSigned === true,
+      notes: str(p.notes),
+      ...audited(p, now),
+      updatedAt: str(p.updatedAt, EPOCH),
+    };
+  });
   const items: Item[] = records(r.items).map((i) => {
     const loc = (typeof i.location === 'object' && i.location !== null ? i.location : {}) as Record<string, unknown>;
     const status = i.status;
@@ -240,6 +279,7 @@ export function normaliseState(raw: unknown): AppState {
       soldDate: typeof i.soldDate === 'string' ? i.soldDate : null,
       salesChannel: str(i.salesChannel),
       saleCosts: num(i.saleCosts),
+      history: audited(i, createdAt).history,
       notes: str(i.notes),
       createdAt,
       updatedAt: str(i.updatedAt, EPOCH),
@@ -253,6 +293,9 @@ export function normaliseState(raw: unknown): AppState {
     amount: num(e.amount),
     pickupId: typeof e.pickupId === 'string' ? e.pickupId : null,
     recurringId: typeof e.recurringId === 'string' ? e.recurringId : null,
+    paymentMethod: paymentMethod(e.paymentMethod),
+    attachmentIds: strList(e.attachmentIds, []),
+    ...audited(e, str(e.updatedAt, EPOCH) === EPOCH ? now : str(e.updatedAt)),
     updatedAt: str(e.updatedAt, EPOCH),
   }));
   const recurring: RecurringCost[] = records(r.recurring).map((c) => ({
@@ -271,9 +314,14 @@ export function normaliseState(raw: unknown): AppState {
   const otherIncome: OtherIncome[] = records(r.otherIncome).map((o) => ({
     id: str(o.id) || newId(),
     date: str(o.date, now.slice(0, 10)),
+    kind: o.kind === 'rag' || o.kind === 'charity' || o.kind === 'bulk' ? o.kind : 'other',
+    buyer: str(o.buyer),
+    weightKg: numOrNull(o.weightKg),
+    paymentMethod: paymentMethod(o.paymentMethod),
     description: str(o.description),
     amount: num(o.amount),
     pickupId: typeof o.pickupId === 'string' ? o.pickupId : null,
+    ...audited(o, str(o.updatedAt, EPOCH) === EPOCH ? now : str(o.updatedAt)),
     updatedAt: str(o.updatedAt, EPOCH),
   }));
   const employments: Employment[] = records(r.employments).map((e) => ({
@@ -315,7 +363,11 @@ export function itemsToCsv(state: AppState, items: Item[]): string {
 }
 
 export function downloadText(filename: string, text: string, type = 'text/plain') {
-  const url = URL.createObjectURL(new Blob([text], { type }));
+  downloadBlob(filename, new Blob([text], { type }));
+}
+
+export function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;

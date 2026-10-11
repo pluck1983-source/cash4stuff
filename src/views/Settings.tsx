@@ -5,7 +5,7 @@ import { calculatedPickupCost } from '../lib/calc';
 import { money, parseNumber } from '../lib/format';
 import { downloadText, exportStateAsJson, importStateFromJson, todayIso } from '../lib/storage';
 import { routeHref } from '../lib/router';
-import { Button, Card, Field, Input, PageHeader, Select } from '../components/ui';
+import { Button, Card, Field, Input, PageHeader, Select, TextArea } from '../components/ui';
 
 export function SettingsView({
   state,
@@ -74,8 +74,23 @@ export function SettingsView({
         </div>
         <p className="mt-3 text-sm text-slate-500">
           Example: 12.3 kg costs {money(calculatedPickupCost(12.3, settings))}, 12.8 kg costs {money(calculatedPickupCost(12.8, settings))}. Changing this
-          re-prices every past pickup that doesn't have an "actually paid" amount.
+          only affects new pickups - each pickup keeps the rate and cost it was bought at.
         </p>
+      </Card>
+
+      <Card title="Purchase receipts">
+        <p className="mb-3 text-sm text-slate-500">Printed at the top of the receipt the seller signs.</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Business name">
+            <Input value={settings.businessName} onChange={(e) => update({ businessName: e.target.value })} placeholder="e.g. Wardrobe to Wallet" />
+          </Field>
+          <Field label="Your name">
+            <Input value={settings.traderName} onChange={(e) => update({ traderName: e.target.value })} />
+          </Field>
+          <Field label="Address / phone" className="md:col-span-2">
+            <TextArea value={settings.businessAddress} onChange={(e) => update({ businessAddress: e.target.value })} />
+          </Field>
+        </div>
       </Card>
 
       <Card title="Lists">

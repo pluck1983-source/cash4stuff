@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { useAppState } from './lib/useAppState';
 import { useCloudSync } from './lib/sync/useCloudSync';
 import { routeHref, useIsDesktop, useRoute, type Route } from './lib/router';
@@ -16,6 +16,7 @@ import { ItemDetailView } from './views/ItemDetail';
 import { MoneyView } from './views/Money';
 import { SettingsView } from './views/Settings';
 import { FinanceView } from './views/Finance';
+import { liveState } from './lib/audit';
 import { AdminView } from './views/Admin';
 
 type Section = 'dashboard' | 'pickups' | 'add' | 'stock' | 'money' | 'finance' | 'admin' | 'settings';
@@ -53,8 +54,10 @@ function NavIcon({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
-  const { state, replaceState, actions } = useAppState();
-  const sync = useCloudSync(state, replaceState);
+  const { state: books, replaceState, actions } = useAppState();
+  const sync = useCloudSync(books, replaceState);
+  // Voided purchases, costs and income stay in the books but out of every total.
+  const state = useMemo(() => liveState(books), [books]);
   const route = useRoute();
   const isDesktop = useIsDesktop();
 
@@ -83,10 +86,10 @@ export default function App() {
       view = <DashboardView state={state} />;
       break;
     case 'pickups':
-      view = <PickupsView state={state} actions={actions} />;
+      view = <PickupsView state={state} books={books} actions={actions} />;
       break;
     case 'pickup':
-      view = <PickupDetailView state={state} actions={actions} id={route.id} />;
+      view = <PickupDetailView state={state} books={books} actions={actions} id={route.id} />;
       break;
     case 'add-item':
       view = <AddItemView key={route.pickupId ?? 'none'} state={state} actions={actions} pickupId={route.pickupId} />;
@@ -98,10 +101,10 @@ export default function App() {
       view = <ItemDetailView state={state} actions={actions} id={route.id} />;
       break;
     case 'money':
-      view = <MoneyView state={state} actions={actions} />;
+      view = <MoneyView state={state} books={books} actions={actions} />;
       break;
     case 'finance':
-      view = <FinanceView state={state} actions={actions} />;
+      view = <FinanceView state={state} books={books} actions={actions} />;
       break;
     case 'admin':
       view = <AdminView state={state} actions={actions} />;
@@ -109,7 +112,7 @@ export default function App() {
     case 'settings':
       view = (
         <SettingsView
-          state={state}
+          state={books}
           actions={actions}
           replaceState={replaceState}
           accountEmail={sync.accountEmail}

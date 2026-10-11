@@ -101,3 +101,14 @@ html,
 body {
   overflow-x: clip;
 }
+
+/* Printing a purchase receipt prints just the receipt */
+@media print {
+  body.print-receipt #root {
+    display: none;
+  }
+  body.print-receipt .receipt {
+    position: static;
+    overflow: visible;
+  }
+}

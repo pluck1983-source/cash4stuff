@@ -133,3 +133,10 @@ export function photoUrl(id: string): Promise<string | null> {
   inFlight.set(id, promise);
   return promise;
 }
+
+/** The image itself - from this device, or the cloud if it was taken on another one */
+export async function loadPhotoBlob(id: string): Promise<Blob | null> {
+  const local = await getPhoto(id).catch(() => null);
+  if (local || !remoteFetcher) return local;
+  return remoteFetcher(id).catch(() => null);
+}

@@ -25,7 +25,7 @@ function readDefaults(state: AppState): Defaults {
   } catch {
     // fall through to defaults
   }
-  return { category: state.settings.categories[0] ?? 'Other', area: state.settings.storageAreas[0] ?? '', rack: '', box: '', status: 'listed' };
+  return { category: state.settings.categories[0] ?? 'Other', area: state.settings.storageAreas[0] ?? '', rack: '', box: '', status: 'in_stock' };
 }
 
 /**
@@ -70,7 +70,8 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         photoId: null,
         location: { area: d.area, rack: d.rack.trim(), box: d.box.trim() },
         listPrice,
-        status: d.status === 'listed' && listPrice === null ? 'in_stock' : d.status,
+        status: d.status,
+        listedDate: d.status === 'listed' ? todayIso() : null,
         soldPrice: sold,
         soldDate: sold !== null ? soldDate : null,
         salesChannel: '',
@@ -135,8 +136,8 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         <Input value={d.rack} onChange={(e) => set({ rack: e.target.value })} placeholder="Rack" aria-label="Rack" />
         <Input value={d.box} onChange={(e) => set({ box: e.target.value })} placeholder="Box" aria-label="Box" />
         <Select value={d.status} onChange={(e) => set({ status: e.target.value as ItemStatus })} aria-label="Status">
-          <option value="listed">Listed</option>
           <option value="in_stock">Not listed</option>
+          <option value="listed">Listed online</option>
           <option value="sold">Already sold</option>
         </Select>
         {d.status === 'sold' && (

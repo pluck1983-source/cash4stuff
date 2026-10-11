@@ -12,7 +12,8 @@ export function skuPrefix(category: string): string {
 }
 
 function skuNumber(sku: string): number {
-  const match = /(\d+)$/.exec(sku);
+  // Only our own CAT-0001 codes count, so a typed code like LEVI501 doesn't jump the numbering.
+  const match = /^[A-Z]{3}-(\d+)$/.exec(sku);
   return match ? Number(match[1]) : 0;
 }
 

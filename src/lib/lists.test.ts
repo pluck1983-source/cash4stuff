@@ -25,6 +25,7 @@ function item(id: string, category: string, subcategory = ''): Item {
     saleCosts: 0,
     history: [],
     sku: '',
+    listedDate: null,
     keywords: '',
     notes: '',
     createdAt: T,

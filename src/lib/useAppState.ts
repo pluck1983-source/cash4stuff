@@ -7,7 +7,7 @@ import { applyListEdit, type ListEdit } from './lists';
 import { loadState, newId, saveState, todayIso } from './storage';
 
 type NewPickup = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber'>;
-type NewItem = Omit<Item, 'id' | 'sku' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'>;
+type NewItem = Omit<Item, 'id' | 'sku' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'> & { sku?: string };
 type NewEmployment = Omit<Employment, 'id' | 'updatedAt'>;
 type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId' | 'paymentMethod' | 'attachmentIds' | keyof Audited> & {
   recurringId?: string | null;
@@ -121,9 +121,10 @@ export function useAppState() {
         const now = stamp();
         const added = createdAt ?? now;
         const priceHistory = data.listPrice !== null ? [{ date: added.slice(0, 10), price: data.listPrice }] : [];
-        const item: Item = { ...data, sku: makeSku(data.category, nextSkuNumber(stateRef.current.items)), priceHistory, history: [], id: newId(), createdAt: added, updatedAt: now };
+        const typed = data.sku?.trim() ?? '';
+        const item: Item = { ...data, sku: typed || makeSku(data.category, nextSkuNumber(stateRef.current.items)), priceHistory, history: [], id: newId(), createdAt: added, updatedAt: now };
         // Numbered against the latest list so two quick adds can't share a SKU.
-        setState((s) => ({ ...s, items: [...s.items, { ...item, sku: makeSku(item.category, nextSkuNumber(s.items)) }] }));
+        setState((s) => ({ ...s, items: [...s.items, { ...item, sku: typed || makeSku(item.category, nextSkuNumber(s.items)) }] }));
         return item;
       },
       /** Saves an item; a changed asking price is added to its price history */

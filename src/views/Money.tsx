@@ -196,7 +196,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
             {tab === 'costs' ? (
               <div>
                 <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Type</span>
-                <Chips options={state.settings.expenseCategories} value={draft.category} onChange={(category) => setDraft({ ...draft, category })} />
+                <Chips grid options={state.settings.expenseCategories} value={draft.category} onChange={(category) => setDraft({ ...draft, category })} />
               </div>
             ) : (
               <>

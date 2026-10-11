@@ -14,6 +14,10 @@ describe('SKUs', () => {
     expect(nextSkuNumber([{ sku: 'TOP-0007' }, { sku: 'SHO-0012' }, { sku: '' }])).toBe(13);
   });
 
+  it('ignores hand-typed codes when numbering', () => {
+    expect(nextSkuNumber([{ sku: 'TOP-0007' }, { sku: 'LEVI501' }, { sku: 'X-9999' }])).toBe(8);
+  });
+
   it('gives items without one a SKU, oldest first, and leaves the rest alone', () => {
     const items = [
       { sku: '', category: 'Shoes', createdAt: '2026-02-01', updatedAt: 'old' },

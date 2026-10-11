@@ -49,7 +49,7 @@ export function PickupForm({
   initial?: Pickup;
   /** A previous seller to fill in on a new pickup */
   seller?: SellerDetails;
-  onSave: (data: PickupDraft, next: 'photo' | 'quick') => void;
+  onSave: (data: PickupDraft, next: 'photo' | 'quick' | 'done') => void;
   onCancel: () => void;
 }) {
   const { settings } = state;
@@ -109,7 +109,7 @@ export function PickupForm({
             signaturePhotoId,
             notes: notes.trim(),
           },
-          submitter?.value === 'quick' ? 'quick' : 'photo',
+          submitter?.value === 'quick' ? 'quick' : submitter?.value === 'done' ? 'done' : 'photo',
         );
       }}
     >
@@ -208,17 +208,27 @@ export function PickupForm({
       <Field label="Notes">
         <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="primary" className="flex-1" value="photo" disabled={saving}>
-          {initial ? 'Save pickup' : 'Save & add items'}
-        </Button>
-        {!initial && (
-          <Button type="submit" value="quick" className="flex-1" disabled={saving}>
-            Save & quick entry (existing stock)
+      {initial ? (
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" variant="primary" className="flex-1" value="photo" disabled={saving}>
+            Save pickup
           </Button>
-        )}
-        <Button onClick={onCancel}>Cancel</Button>
-      </div>
+          <Button onClick={onCancel}>Cancel</Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Button type="submit" variant="primary" className="sm:flex-1" value="photo" disabled={saving}>
+            Save & add items
+          </Button>
+          <Button type="submit" value="quick" className="sm:flex-1" disabled={saving}>
+            Save & quick entry
+          </Button>
+          <Button type="submit" value="done" disabled={saving}>
+            Save
+          </Button>
+          <Button onClick={onCancel}>Cancel</Button>
+        </div>
+      )}
     </form>
   );
 }
@@ -252,6 +262,7 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
             onSave={(data, next) => {
               const pickup = actions.addPickup(data);
               setAdding(false);
+              if (next === 'done') return;
               if (next === 'quick') {
                 sessionStorage.setItem(OPEN_QUICK_ENTRY_KEY, pickup.id);
                 navigate({ name: 'pickup', id: pickup.id });

@@ -31,6 +31,13 @@ describe('pickup seller details', () => {
   });
 });
 
+describe('who it is for', () => {
+  it('loads items once marked unisex as not set', () => {
+    const s = normaliseState({ items: [{ id: 'a', gender: 'unisex' }, { id: 'b', gender: 'girls' }] });
+    expect(s.items.map((i) => i.gender)).toEqual(['', 'girls']);
+  });
+});
+
 describe('listed date', () => {
   it('loads older items with no listed date', () => {
     const s = normaliseState({ items: [{ id: 'a', status: 'listed' }, { id: 'b', status: 'listed', listedDate: '2026-10-11' }] });

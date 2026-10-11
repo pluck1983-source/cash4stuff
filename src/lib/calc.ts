@@ -329,8 +329,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   return state.items.filter((i) => {
     if (filter.category && i.category !== filter.category) return false;
     if (filter.category && filter.subcategory && i.subcategory !== filter.subcategory) return false;
-    // Unisex items show up when looking for either men's or women's.
-    if (filter.gender && i.gender !== filter.gender && !(i.gender === 'unisex' && filter.gender !== 'unisex')) return false;
+    if (filter.gender && i.gender !== filter.gender) return false;
     if (filter.status === 'held' ? !isHeld(i) : filter.status && i.status !== filter.status) return false;
     if (filter.pickupId && i.pickupId !== filter.pickupId) return false;
     if (filter.area && i.location.area !== filter.area) return false;
@@ -350,8 +349,8 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   });
 }
 
-export const GENDER_LABELS: Record<ItemGender, string> = { '': '', mens: "Men's", womens: "Women's", unisex: 'Unisex' };
-export const GENDER_OPTIONS: ItemGender[] = ['mens', 'womens', 'unisex'];
+export const GENDER_LABELS: Record<ItemGender, string> = { '': '', mens: "Men's", womens: "Women's", boys: 'Boys', girls: 'Girls' };
+export const GENDER_OPTIONS: ItemGender[] = ['mens', 'womens', 'boys', 'girls'];
 
 /** "Women's · Tops · T-shirts", or just "Tops" */
 export function categoryLabel(item: Pick<Item, 'category' | 'subcategory'> & { gender?: ItemGender }): string {

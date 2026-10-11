@@ -107,11 +107,10 @@ export function StockView({ state }: { state: AppState }) {
             <option value="written_off">Written off</option>
           </Select>
           <Select value={filter.gender} onChange={(e) => setFilter({ gender: e.target.value as ItemFilter['gender'] })} aria-label="For">
-            <option value="">Men's, women's &amp; unisex</option>
+            <option value="">Everyone</option>
             {GENDER_OPTIONS.map((g) => (
               <option key={g} value={g}>
                 {GENDER_LABELS[g]}
-                {g !== 'unisex' ? ' (+ unisex)' : ''}
               </option>
             ))}
           </Select>

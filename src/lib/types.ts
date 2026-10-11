@@ -18,6 +18,32 @@ export interface Settings {
   expenseCategories: string[];
   /** Which self-assessment expense box each cost type goes in (Finance tab) */
   expenseTaxBoxes: Record<string, TaxExpenseBox>;
+  /** Cash basis (the default for sole traders) records money when it moves; there's no stock valuation */
+  accountingBasis: 'cash' | 'accruals';
+  /** Printed on purchase receipts */
+  businessName: string;
+  traderName: string;
+  businessAddress: string;
+}
+
+export type PaymentMethod = '' | 'cash' | 'bank' | 'other';
+
+/** One change to a record made after the day it was entered: field -> [before, after] */
+export interface EditRecord {
+  at: string;
+  changes: Record<string, [string, string]>;
+}
+
+/**
+ * Money records are never deleted - they're voided, with a reason, and edits
+ * made after the day of entry are logged - so the books show what happened.
+ */
+export interface Audited {
+  /** When it was first entered - shown in the records, since back-filled books are a red flag */
+  createdAt: string;
+  voidedAt: string | null;
+  voidReason: string;
+  history: EditRecord[];
 }
 
 /** Allowable-expense headings on the HMRC self-employment pages (SA103) */
@@ -41,7 +67,7 @@ export interface PricePoint {
   price: number;
 }
 
-export interface Pickup {
+export interface Pickup extends Audited {
   id: string;
   /** ISO date (yyyy-mm-dd) */
   date: string;
@@ -54,8 +80,22 @@ export interface Pickup {
    * offer, a freebie). Null means use the calculated cost.
    */
   costOverride: number | null;
+  /** £/kg when it was bought - later rate changes don't re-price it */
+  ratePerKg: number;
+  /** What was paid, worked out and saved when entered */
+  amountPaid: number;
+  paymentMethod: PaymentMethod;
+  /** Bank statement reference, for transfers */
+  bankRef: string;
+  /** Seller's phone or email, in case HMRC asks */
+  sellerContact: string;
+  /** Sequential purchase receipt number, given once and never changed */
+  receiptNumber: number | null;
+  /** On-screen seller signature, kept in the photo store */
+  signaturePhotoId: string | null;
+  /** Seller signed a paper slip instead */
+  paperSlipSigned: boolean;
   notes: string;
-  createdAt: string;
   /** Used to merge edits made on different devices - the newer edit of a record wins */
   updatedAt: string;
 }
@@ -95,12 +135,14 @@ export interface Item {
   salesChannel: string;
   /** Selling fees / postage paid by the seller on this sale */
   saleCosts: number;
+  /** Changes to the sale made after the day it was recorded */
+  history: EditRecord[];
   notes: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Expense {
+export interface Expense extends Audited {
   id: string;
   date: string;
   category: string;
@@ -110,6 +152,9 @@ export interface Expense {
   pickupId: string | null;
   /** Set when the cost was posted automatically by a repeating cost */
   recurringId: string | null;
+  paymentMethod: PaymentMethod;
+  /** Photos of receipts/invoices, kept in the photo store */
+  attachmentIds: string[];
   updatedAt: string;
 }
 
@@ -134,10 +179,18 @@ export interface RecurringCost {
   updatedAt: string;
 }
 
+/** rag = unsellable stock to a rag merchant; charity = unsellable bags weighed out to charity bins; bulk = a lot sold by weight */
+export type IncomeKind = 'rag' | 'charity' | 'bulk' | 'other';
+
 /** Money in that isn't an item sale (e.g. a bulk lot sold by weight, a refund) */
-export interface OtherIncome {
+export interface OtherIncome extends Audited {
   id: string;
   date: string;
+  kind: IncomeKind;
+  /** Who paid - the rag merchant, a market buyer */
+  buyer: string;
+  weightKg: number | null;
+  paymentMethod: PaymentMethod;
   description: string;
   amount: number;
   pickupId: string | null;

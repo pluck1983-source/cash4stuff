@@ -93,7 +93,11 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
 
   const syncPhotos = useCallback(async () => {
     const current = stateRef.current;
-    const inUse = new Set(current.items.map((i) => i.photoId).filter((id): id is string => id !== null));
+    const inUse = new Set(
+      [...current.items.map((i) => i.photoId), ...current.pickups.map((p) => p.signaturePhotoId), ...current.expenses.flatMap((e) => e.attachmentIds)].filter(
+        (id): id is string => id !== null,
+      ),
+    );
     const toUpload = (await unsyncedPhotoIds()).filter((id) => inUse.has(id));
     setPendingPhotos(toUpload.length);
     for (const id of toUpload) {

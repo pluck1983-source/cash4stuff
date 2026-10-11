@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { calculatedPickupCost, filterItems, EMPTY_FILTER, periodFor, pickupStats, roundWeight, totals } from './calc';
 import { DEFAULT_SETTINGS, emptyState } from './storage';
 import type { AppState, Item, Pickup } from './types';
+import { purchaseCost } from './audit';
+import { testPickup } from './fixtures';
 
 const T = '2026-01-01T00:00:00.000Z';
 
 function pickup(over: Partial<Pickup> = {}): Pickup {
-  return { id: 'p1', date: '2026-03-10', reference: 'Sarah', weightKg: 12.3, costOverride: null, notes: '', createdAt: T, updatedAt: T, ...over };
+  const base = { ...testPickup({ id: 'p1', date: '2026-03-10', reference: 'Sarah', weightKg: 12.3 }), ...over };
+  return { ...base, amountPaid: over.amountPaid ?? base.costOverride ?? purchaseCost(base.weightKg, base.ratePerKg, DEFAULT_SETTINGS) };
 }
 
 function item(over: Partial<Item> = {}): Item {
@@ -26,6 +29,7 @@ function item(over: Partial<Item> = {}): Item {
     soldDate: null,
     salesChannel: '',
     saleCosts: 0,
+    history: [],
     notes: '',
     createdAt: '2026-03-11T10:00:00.000Z',
     updatedAt: T,
@@ -77,7 +81,7 @@ describe('pickupStats', () => {
         item({ listPrice: null, status: 'in_stock' }),
         item({ pickupId: 'other', status: 'sold', soldPrice: 100, soldDate: '2026-03-21' }),
       ],
-      expenses: [{ id: 'e1', date: '2026-03-10', category: 'Fuel', description: '', amount: 5, pickupId: 'p1', recurringId: null, updatedAt: T }],
+      expenses: [{ id: 'e1', date: '2026-03-10', category: 'Fuel', description: '', amount: 5, pickupId: 'p1', recurringId: null, paymentMethod: '', attachmentIds: [], updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] }],
     });
     const s = pickupStats(state, p);
     expect(s.stockCost).toBe(15);
@@ -102,10 +106,10 @@ describe('totals', () => {
       item({ pickupId: 'p2', status: 'sold', soldPrice: 9, soldDate: '2025-12-20' }),
     ],
     expenses: [
-      { id: 'e1', date: '2026-03-01', category: 'Rent', description: '', amount: 50, pickupId: null, recurringId: null, updatedAt: T },
-      { id: 'e2', date: '2025-11-01', category: 'Fuel', description: '', amount: 10, pickupId: null, recurringId: null, updatedAt: T },
+      { id: 'e1', date: '2026-03-01', category: 'Rent', description: '', amount: 50, pickupId: null, recurringId: null, paymentMethod: '', attachmentIds: [], updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] },
+      { id: 'e2', date: '2025-11-01', category: 'Fuel', description: '', amount: 10, pickupId: null, recurringId: null, paymentMethod: '', attachmentIds: [], updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] },
     ],
-    otherIncome: [{ id: 'o1', date: '2026-03-02', description: 'Bulk lot', amount: 5, pickupId: null, updatedAt: T }],
+    otherIncome: [{ id: 'o1', date: '2026-03-02', kind: 'bulk', buyer: '', weightKg: null, paymentMethod: '', description: 'Bulk lot', amount: 5, pickupId: null, updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] }],
   });
 
   it('adds everything up for all time', () => {

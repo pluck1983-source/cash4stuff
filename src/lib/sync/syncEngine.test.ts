@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { decideSync, hashState, mergeStates } from './syncEngine';
 import { emptyState } from '../storage';
 import type { AppState, Pickup } from '../types';
+import { testPickup } from '../fixtures';
 
 function pickup(id: string, updatedAt: string, reference = id): Pickup {
-  return { id, date: '2026-03-01', reference, weightKg: 1, costOverride: null, notes: '', createdAt: updatedAt, updatedAt };
+  return testPickup({ id, date: '2026-03-01', reference, weightKg: 1, createdAt: updatedAt, updatedAt });
 }
 
 function withPickups(pickups: Pickup[], over: Partial<AppState> = {}): AppState {

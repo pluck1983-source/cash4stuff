@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import type { AppState, Expense, OtherIncome, RecurringCost, RecurringFrequency } from '../lib/types';
+import type { AppState, Expense, IncomeKind, OtherIncome, PaymentMethod, RecurringCost, RecurringFrequency } from '../lib/types';
+import { paymentLabel } from '../lib/audit';
+import { PaymentChips, VoidedNote, askVoidReason } from '../components/Records';
 import { describeRecurring, nextPayment } from '../lib/recurring';
 import type { AppActions } from '../lib/useAppState';
 import { PERIOD_LABELS, expensesByCategory, inPeriod, periodFor, type PeriodKey } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
-import { todayIso } from '../lib/storage';
+import { newId, todayIso } from '../lib/storage';
+import { compressImage, savePhoto } from '../lib/photos';
+import { Photo } from '../components/Photo';
 import { Button, Card, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
 
 type Tab = 'costs' | 'income';
@@ -24,15 +28,34 @@ interface Draft {
   endDate: string;
   introAmount: string;
   introPeriods: string;
+  paymentMethod: PaymentMethod;
+  kind: IncomeKind;
+  buyer: string;
+  weight: string;
+  rate: string;
+  attachmentIds: string[];
+}
+
+const WEIGHED: IncomeKind[] = ['rag', 'charity'];
+
+function rateKey(kind: IncomeKind) {
+  return `cash4stuff-rate-${kind}`;
+}
+
+/** Last £/kg used for rag or charity weigh-outs (they're usually the same) */
+function lastRate(kind: IncomeKind): string {
+  return localStorage.getItem(rateKey(kind)) ?? WEIGHED.map((k) => localStorage.getItem(rateKey(k))).find(Boolean) ?? '';
 }
 
 function blankDraft(category: string): Draft {
-  return { date: todayIso(), category, description: '', amount: '', pickupId: '', repeat: 'once', endDate: '', introAmount: '', introPeriods: '' };
+  return { date: todayIso(), category, description: '', amount: '', pickupId: '', repeat: 'once', endDate: '', introAmount: '', introPeriods: '', paymentMethod: '', kind: 'rag', buyer: '', weight: '', rate: lastRate('rag'), attachmentIds: [] };
 }
+
+export const INCOME_KIND_LABELS: Record<IncomeKind, string> = { rag: 'Rag merchant', charity: 'Charity bins', bulk: 'Bulk lot', other: 'Other' };
 
 const REPEAT_LABELS: Record<Repeat, string> = { once: 'One-off', weekly: 'Weekly', monthly: 'Monthly' };
 
-export function MoneyView({ state, actions }: { state: AppState; actions: AppActions }) {
+export function MoneyView({ state, books, actions }: { state: AppState; books: AppState; actions: AppActions }) {
   const [tab, setTab] = useState<Tab>('costs');
   const [periodKey, setPeriodKey] = useState<PeriodKey>('month');
   const defaultCategory = state.settings.expenseCategories[0] ?? 'Other';
@@ -42,10 +65,11 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
   const pickups = [...state.pickups].sort((a, b) => b.date.localeCompare(a.date));
   const pickupName = (id: string | null) => (id ? (state.pickups.find((p) => p.id === id)?.reference ?? '') : '');
 
-  const rows: (Expense | OtherIncome)[] = (tab === 'costs' ? state.expenses : state.otherIncome)
+  // Voided entries stay listed (crossed out) so the record is complete, but don't count.
+  const rows: (Expense | OtherIncome)[] = (tab === 'costs' ? books.expenses : books.otherIncome)
     .filter((r) => inPeriod(r.date, period))
     .sort((a, b) => b.date.localeCompare(a.date));
-  const total = rows.reduce((t, r) => t + r.amount, 0);
+  const total = rows.reduce((t, r) => t + (r.voidedAt === null ? r.amount : 0), 0);
 
   const repeating = tab === 'costs' && draft.repeat !== 'once';
   const per = draft.repeat === 'weekly' ? 'week' : 'month';
@@ -72,8 +96,12 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
       setDraft(blankDraft(draft.category));
       return;
     }
-    if (tab === 'costs') actions.saveExpense({ ...base, id: draft.id, category: draft.category, recurringId: draft.recurringId ?? null });
-    else actions.saveIncome({ ...base, id: draft.id });
+    if (tab === 'costs')
+      actions.saveExpense({ ...base, id: draft.id, category: draft.category, recurringId: draft.recurringId ?? null, paymentMethod: draft.paymentMethod, attachmentIds: draft.attachmentIds });
+    else {
+      if (WEIGHED.includes(draft.kind) && draft.rate) localStorage.setItem(rateKey(draft.kind), draft.rate);
+      actions.saveIncome({ ...base, id: draft.id, kind: draft.kind, buyer: draft.buyer.trim(), weightKg: parseNumber(draft.weight), paymentMethod: draft.paymentMethod });
+    }
     setDraft({ ...blankDraft(draft.category), date: draft.date });
   }
 
@@ -87,6 +115,8 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
       description: r.description,
       amount: String(r.amount),
       pickupId: r.pickupId ?? '',
+      paymentMethod: r.paymentMethod,
+      ...('kind' in r ? { kind: r.kind, buyer: r.buyer, weight: r.weightKg !== null ? String(r.weightKg) : '', rate: '' } : { attachmentIds: r.attachmentIds }),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -103,8 +133,33 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
       endDate: plan.endDate ?? '',
       introAmount: plan.introAmount !== null ? String(plan.introAmount) : '',
       introPeriods: plan.introPeriods ? String(plan.introPeriods) : '',
+      paymentMethod: '',
+      kind: 'rag',
+      buyer: '',
+      weight: '',
+      rate: '',
+      attachmentIds: [],
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /** Weight x rate fills in the amount for rag and charity weigh-outs (it can still be overtyped) */
+  function weighOut(weight: string, rate: string) {
+    const w = parseNumber(weight);
+    const r = parseNumber(rate);
+    const amount = WEIGHED.includes(draft.kind) && w !== null && r !== null ? (Math.round(w * r * 100) / 100).toFixed(2) : draft.amount;
+    setDraft({ ...draft, weight, rate, amount });
+  }
+
+  async function attach(files: FileList | null) {
+    if (!files?.length) return;
+    const ids: string[] = [];
+    for (const file of Array.from(files)) {
+      const id = newId();
+      await savePhoto(id, await compressImage(file), false);
+      ids.push(id);
+    }
+    setDraft((d) => ({ ...d, attachmentIds: [...d.attachmentIds, ...ids] }));
   }
 
   const editing = Boolean(draft.id || draft.planId);
@@ -144,7 +199,37 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
                 <Chips options={state.settings.expenseCategories} value={draft.category} onChange={(category) => setDraft({ ...draft, category })} />
               </div>
             ) : (
-              <p className="text-xs text-slate-500">Item sales are recorded on each item. Use this for anything else - a bulk lot sold by weight, a refund, etc.</p>
+              <>
+                <p className="text-xs text-slate-500">Item sales are recorded on each item. Use this for unsellable stock sold to a rag merchant, a bulk lot sold by weight, or anything else.</p>
+                <div>
+                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Type</span>
+                  <Chips
+                    options={Object.values(INCOME_KIND_LABELS)}
+                    value={INCOME_KIND_LABELS[draft.kind]}
+                    onChange={(label) => {
+                      const kind = (Object.keys(INCOME_KIND_LABELS) as IncomeKind[]).find((k) => INCOME_KIND_LABELS[k] === label) ?? 'other';
+                      setDraft({ ...draft, kind, rate: draft.rate || lastRate(kind) });
+                    }}
+                  />
+                </div>
+                <Field label="Who paid">
+                  <Input
+                    value={draft.buyer}
+                    onChange={(e) => setDraft({ ...draft, buyer: e.target.value })}
+                    placeholder={draft.kind === 'rag' ? 'e.g. ABC Textiles' : draft.kind === 'charity' ? 'e.g. the charity bin company' : ''}
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label={WEIGHED.includes(draft.kind) ? 'Weight (kg)' : 'Weight (kg, optional)'}>
+                    <Input type="number" inputMode="decimal" step="0.01" min="0" value={draft.weight} onChange={(e) => weighOut(e.target.value, draft.rate)} />
+                  </Field>
+                  {WEIGHED.includes(draft.kind) && (
+                    <Field label="Rate (£/kg)">
+                      <Input type="number" inputMode="decimal" step="0.01" min="0" value={draft.rate} onChange={(e) => weighOut(draft.weight, e.target.value)} />
+                    </Field>
+                  )}
+                </div>
+              </>
             )}
             {tab === 'costs' && !draft.id && (
               <div>
@@ -185,9 +270,38 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
                 </p>
               </>
             )}
+            {!repeating && (
+              <Field label={tab === 'costs' ? 'Paid by' : 'Paid to you by'}>
+                <PaymentChips value={draft.paymentMethod} onChange={(paymentMethod) => setDraft({ ...draft, paymentMethod })} />
+              </Field>
+            )}
             <Field label="Description">
               <Input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={tab === 'costs' ? 'e.g. 100 mailing bags' : ''} />
             </Field>
+            {tab === 'costs' && !repeating && (
+              <Field label="Receipts & invoices (optional)" hint="Photos are kept with the cost and go in the records ZIP">
+                <div className="flex flex-wrap gap-2">
+                  {draft.attachmentIds.map((id) => (
+                    <div key={id} className="relative">
+                      <Photo id={id} alt="Receipt" className="h-20 w-16 rounded-lg" />
+                      <button
+                        type="button"
+                        aria-label="Remove attachment"
+                        className="absolute -right-1.5 -top-1.5 h-6 w-6 rounded-full bg-slate-900 text-xs text-white"
+                        onClick={() => setDraft({ ...draft, attachmentIds: draft.attachmentIds.filter((x) => x !== id) })}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <label className="flex h-20 w-16 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-xs text-slate-500 dark:border-slate-600">
+                    <span className="text-xl leading-none">+</span>
+                    Photo
+                    <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => void attach(e.target.files).then(() => (e.target.value = ''))} />
+                  </label>
+                </div>
+              </Field>
+            )}
             <Field label="Link to pickup (optional)" hint="Counts towards that pickup's profit">
               <Select value={draft.pickupId} onChange={(e) => setDraft({ ...draft, pickupId: e.target.value })}>
                 <option value="">General business</option>
@@ -229,7 +343,7 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
                       className="shrink-0 rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300"
                       onClick={() => {
                         if (!window.confirm(`Stop "${plan.description || plan.category}"? Nothing more will be added.`)) return;
-                        const keep = window.confirm('Keep the payments already added to your costs?\n\nOK - keep them (they were paid)\nCancel - delete them too');
+                        const keep = window.confirm('Keep the payments already added to your costs?\n\nOK - keep them (they were paid)\nCancel - void them too');
                         actions.deleteRecurring(plan.id, keep);
                         if (draft.planId === plan.id) setDraft(blankDraft(defaultCategory));
                       }}
@@ -269,32 +383,47 @@ export function MoneyView({ state, actions }: { state: AppState; actions: AppAct
             <Empty>Nothing recorded for {PERIOD_LABELS[periodKey].toLowerCase()}.</Empty>
           ) : (
             <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
-              {rows.map((r) => (
-                <li key={r.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => edit(r)}>
-                    <div className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {'category' in r ? r.category : r.description || 'Income'}
-                      {'category' in r && r.description && <span className="font-normal text-slate-500"> · {r.description}</span>}
-                    </div>
-                    <div className="truncate text-xs text-slate-500">
-                      {'recurringId' in r && r.recurringId && '↻ '}
-                      {shortDate(r.date)}
-                      {r.pickupId && ` · ${pickupName(r.pickupId)}`}
-                    </div>
-                  </button>
-                  <span className="tabular-nums text-sm font-semibold">{money(r.amount)}</span>
-                  <button
-                    type="button"
-                    className="text-slate-400 hover:text-red-600"
-                    aria-label="Delete"
-                    onClick={() => {
-                      if (window.confirm('Delete this entry?')) (tab === 'costs' ? actions.deleteExpense : actions.deleteIncome)(r.id);
-                    }}
-                  >
-                    ✕
-                  </button>
-                </li>
-              ))}
+              {rows.map((r) => {
+                const voided = r.voidedAt !== null;
+                return (
+                  <li key={r.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <button type="button" className="min-w-0 flex-1 text-left" onClick={() => !voided && edit(r)} disabled={voided}>
+                      <div className={`truncate text-sm font-medium text-slate-900 dark:text-slate-100 ${voided ? 'line-through opacity-60' : ''}`}>
+                        {'category' in r ? r.category : INCOME_KIND_LABELS[r.kind]}
+                        {'kind' in r && r.buyer && <span className="font-normal text-slate-500"> · {r.buyer}</span>}
+                        {r.description && <span className="font-normal text-slate-500"> · {r.description}</span>}
+                      </div>
+                      <div className="truncate text-xs text-slate-500">
+                        {'recurringId' in r && r.recurringId && '↻ '}
+                        {shortDate(r.date)}
+                        {r.paymentMethod && ` · ${paymentLabel(r.paymentMethod)}`}
+                        {'attachmentIds' in r && r.attachmentIds.length > 0 && ` · 📎 ${r.attachmentIds.length}`}
+                        {'kind' in r && r.weightKg !== null && ` · ${r.weightKg} kg`}
+                        {r.pickupId && ` · ${pickupName(r.pickupId)}`}
+                      </div>
+                      {voided && <VoidedNote voidedAt={r.voidedAt} reason={r.voidReason} />}
+                    </button>
+                    <span className={`tabular-nums text-sm font-semibold ${voided ? 'line-through opacity-60' : ''}`}>{money(r.amount)}</span>
+                    {voided ? (
+                      <button type="button" className="text-xs text-slate-500 underline" onClick={() => (tab === 'costs' ? actions.restoreExpense : actions.restoreIncome)(r.id)}>
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-slate-400 hover:text-red-600"
+                        aria-label="Void"
+                        onClick={() => {
+                          const reason = askVoidReason(tab === 'costs' ? 'cost' : 'income');
+                          if (reason) (tab === 'costs' ? actions.voidExpense : actions.voidIncome)(r.id, reason);
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

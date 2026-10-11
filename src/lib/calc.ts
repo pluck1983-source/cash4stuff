@@ -19,9 +19,9 @@ export function calculatedPickupCost(weightKg: number, settings: Settings): numb
   return pence(roundWeight(weightKg, settings.weightStepKg, settings.weightRounding) * settings.costPerKg);
 }
 
-/** What the pickup actually cost to buy - the override if one was entered, else weight x rate */
-export function pickupStockCost(pickup: Pickup, settings: Settings): number {
-  return pickup.costOverride ?? calculatedPickupCost(pickup.weightKg, settings);
+/** What the pickup cost to buy - saved when it was entered, so later rate changes don't alter it */
+export function pickupStockCost(pickup: Pickup, _settings?: Settings): number {
+  return pickup.amountPaid;
 }
 
 export function isSold(item: Item): boolean {

@@ -54,7 +54,7 @@ function businessState(): AppState {
       { id: 'e1', date: '2025-07-01', category: 'Fuel', description: '', amount: 200, pickupId: null },
       { id: 'e2', date: '2025-08-01', category: 'Rent', description: '', amount: 600, pickupId: null },
     ],
-    otherIncome: [{ id: 'o1', date: '2025-09-01', description: 'Bulk lot', amount: 100, pickupId: null }],
+    otherIncome: [{ id: 'o1', date: '2025-09-01', kind: 'bulk', buyer: '', weightKg: null, paymentMethod: '', description: 'Bulk lot', amount: 100, pickupId: null, updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] }],
   });
 }
 

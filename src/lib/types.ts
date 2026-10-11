@@ -113,7 +113,7 @@ export interface StorageLocation {
 }
 
 /** Who it's for - separate from category so "Tops" works for everyone */
-export type ItemGender = '' | 'mens' | 'womens' | 'unisex';
+export type ItemGender = '' | 'mens' | 'womens' | 'boys' | 'girls';
 
 export type ItemStatus = 'in_stock' | 'listed' | 'sold' | 'written_off';
 

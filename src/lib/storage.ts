@@ -274,7 +274,8 @@ export function normaliseState(raw: unknown): AppState {
       keywords: str(i.keywords),
       category: str(i.category, 'Other'),
       subcategory: str(i.subcategory),
-      gender: i.gender === 'mens' || i.gender === 'womens' || i.gender === 'unisex' ? i.gender : '',
+      // Unisex was dropped as an option; those items load as not set (for anyone).
+      gender: i.gender === 'mens' || i.gender === 'womens' || i.gender === 'boys' || i.gender === 'girls' ? i.gender : '',
       photoId: typeof i.photoId === 'string' ? i.photoId : null,
       location: { area: str(loc.area), rack: str(loc.rack), box: str(loc.box) },
       listPrice,

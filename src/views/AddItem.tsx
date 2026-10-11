@@ -1,31 +1,14 @@
 import { useState } from 'react';
-import type { AppState, ItemGender, StorageLocation } from '../lib/types';
+import type { AppState } from '../lib/types';
+import { LAST_KEY, readLast, type LastDefaults } from '../lib/itemDefaults';
 import type { AppActions } from '../lib/useAppState';
 import { money } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
 import { newId } from '../lib/storage';
+import { latestOpenPickupId } from '../lib/sellers';
 import { savePhoto } from '../lib/photos';
-import { Button, PageHeader } from '../components/ui';
+import { Button, LinkButton, PageHeader } from '../components/ui';
 import { ItemEditor, draftListPrice, type ItemDraft } from '../components/ItemEditor';
-
-/** Remembered per device, so boxing up a pile of stock doesn't mean re-typing the shelf every time */
-const LAST_KEY = 'cash4stuff-last-item-defaults';
-
-interface LastDefaults {
-  category: string;
-  subcategory?: string;
-  gender?: ItemGender;
-  location: StorageLocation;
-}
-
-function readLast(): LastDefaults | null {
-  try {
-    const raw = localStorage.getItem(LAST_KEY);
-    return raw ? (JSON.parse(raw) as LastDefaults) : null;
-  } catch {
-    return null;
-  }
-}
 
 function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
   const last = readLast();
@@ -47,13 +30,8 @@ function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
   };
 }
 
-function latestPickupId(state: AppState): string | null {
-  const latest = [...state.pickups].sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt))[0];
-  return latest?.id ?? null;
-}
-
 export function AddItemView({ state, actions, pickupId }: { state: AppState; actions: AppActions; pickupId: string | null }) {
-  const [draft, setDraft] = useState<ItemDraft>(() => freshDraft(state, pickupId ?? latestPickupId(state)));
+  const [draft, setDraft] = useState<ItemDraft>(() => freshDraft(state, pickupId ?? latestOpenPickupId(state.pickups)));
   const [saving, setSaving] = useState(false);
   const [added, setAdded] = useState<{ name: string; price: number | null }[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +84,15 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader title="Add item" back={pickup ? routeHref({ name: 'pickup', id: pickup.id }) : routeHref({ name: 'stock' })} />
+      <PageHeader
+        title="Add item"
+        back={pickup ? routeHref({ name: 'pickup', id: pickup.id }) : routeHref({ name: 'stock' })}
+        actions={
+          <LinkButton href={routeHref({ name: 'add-photos', pickupId: draft.pickupId })}>
+            📷 Add several from photos
+          </LinkButton>
+        }
+      />
       {added.length > 0 && (
         <div className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
           ✓ Added {added.length} item{added.length === 1 ? '' : 's'} - last: {added[0].name}

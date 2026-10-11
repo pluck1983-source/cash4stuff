@@ -4,9 +4,10 @@ import { assignMissingSkus, makeSku, nextSkuNumber } from './sku';
 import { auditDefaults, nextReceiptNumber, purchaseCost, withHistory } from './audit';
 import { postDueRecurring } from './recurring';
 import { applyListEdit, type ListEdit } from './lists';
+import { setResolved } from './sellers';
 import { loadState, newId, saveState, todayIso } from './storage';
 
-type NewPickup = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber'>;
+type NewPickup = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber' | 'resolvedAt'>;
 type NewItem = Omit<Item, 'id' | 'sku' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'> & { sku?: string };
 type NewEmployment = Omit<Employment, 'id' | 'updatedAt'>;
 type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId' | 'paymentMethod' | 'attachmentIds' | keyof Audited> & {
@@ -93,6 +94,7 @@ export function useAppState() {
           ...data,
           amountPaid: data.costOverride ?? purchaseCost(data.weightKg, data.ratePerKg, s0.settings),
           receiptNumber: nextReceiptNumber(s0),
+          resolvedAt: null,
           id: newId(),
           ...auditDefaults(now),
           updatedAt: now,
@@ -108,6 +110,15 @@ export function useAppState() {
           if (before) next = withHistory(before, next, now, PICKUP_FIELDS);
           return { ...s, pickups: s.pickups.map((p) => (p.id === pickup.id ? next : p)) };
         });
+      },
+      /**
+       * Marks a seller's pickups as having all their items added (or undoes it),
+       * so they stop being offered when adding items. A later pickup from the
+       * same seller starts open again.
+       */
+      setSellerResolved(pickupId: string, resolved: boolean) {
+        const now = stamp();
+        setState((s) => ({ ...s, pickups: setResolved(s.pickups, pickupId, resolved, now) }));
       },
       /** A purchase is never deleted - voiding keeps it in the books, crossed out, with the reason */
       voidPickup(id: string, reason: string) {

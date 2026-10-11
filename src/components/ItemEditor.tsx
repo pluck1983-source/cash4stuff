@@ -3,6 +3,7 @@ import type { AppState, ItemGender, ItemStatus, StorageLocation } from '../lib/t
 import { GENDER_LABELS, GENDER_OPTIONS } from '../lib/calc';
 import { parseNumber, shortDate } from '../lib/format';
 import { todayIso } from '../lib/storage';
+import { pickupChoices } from '../lib/sellers';
 import { Chips, Field, Input, Select } from './ui';
 import { Photo, PhotoPicker } from './Photo';
 
@@ -53,7 +54,8 @@ export function ItemEditor({
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
 
-  const pickups = useMemo(() => [...state.pickups].sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt)), [state.pickups]);
+  // One row per seller; resolved sellers drop out unless this item is already theirs.
+  const pickupOptions = useMemo(() => pickupChoices(state.pickups, draft.pickupId), [state.pickups, draft.pickupId]);
 
   // Racks and boxes already used in this area, offered as suggestions.
   const knownRacks = useMemo(
@@ -75,9 +77,10 @@ export function ItemEditor({
         <Field label="Pickup">
           <Select value={draft.pickupId ?? ''} onChange={(e) => set({ pickupId: e.target.value || null })}>
             <option value="">No pickup (bought separately / own stock)</option>
-            {pickups.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.reference} · {shortDate(p.date)}
+            {pickupOptions.map((c) => (
+              <option key={c.pickupId} value={c.pickupId}>
+                {c.pickup.reference} · {shortDate(c.pickup.date)}
+                {c.count > 1 ? ` (${c.count} pickups)` : ''}
               </option>
             ))}
           </Select>

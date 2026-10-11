@@ -102,6 +102,11 @@ export interface Pickup extends Audited {
   /** Seller signed a paper slip instead */
   paperSlipSigned: boolean;
   notes: string;
+  /**
+   * When every item from this pickup had been added to stock. Resolved
+   * pickups drop out of the pickup picker when adding items; null = still open.
+   */
+  resolvedAt: string | null;
   /** Used to merge edits made on different devices - the newer edit of a record wins */
   updatedAt: string;
 }

@@ -21,6 +21,7 @@ export function testPickup(over: Partial<Pickup> = {}): Pickup {
     signaturePhotoId: null,
     paperSlipSigned: false,
     notes: '',
+    resolvedAt: null,
     createdAt: at,
     updatedAt: at,
     voidedAt: null,

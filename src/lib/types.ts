@@ -67,12 +67,18 @@ export interface PricePoint {
   price: number;
 }
 
+export type Handover = 'pickup' | 'dropoff';
+
 export interface Pickup extends Audited {
   id: string;
   /** ISO date (yyyy-mm-dd) */
   date: string;
-  /** Who/where it came from - a name, an address or just a reference */
+  /** The seller's name (older pickups may hold an address or other label here) */
   reference: string;
+  sellerAddress: string;
+  sellerPostcode: string;
+  /** Collected from the seller, or they dropped it off */
+  handover: Handover;
   /** Weight as weighed, in kg - rounding is applied when working out the cost */
   weightKg: number;
   /**

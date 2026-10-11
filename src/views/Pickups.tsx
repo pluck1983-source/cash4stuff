@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AppState, Audited, PaymentMethod, Pickup } from '../lib/types';
+import type { AppState, Audited, Handover, PaymentMethod, Pickup } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { pickupStats, roundWeight } from '../lib/calc';
 import { purchaseCost } from '../lib/audit';
@@ -32,6 +32,9 @@ export function PickupForm({
   const { settings } = state;
   const [date, setDate] = useState(initial?.date ?? todayIso());
   const [reference, setReference] = useState(initial?.reference ?? '');
+  const [address, setAddress] = useState(initial?.sellerAddress ?? '');
+  const [postcode, setPostcode] = useState(initial?.sellerPostcode ?? '');
+  const [handover, setHandover] = useState<Handover>(initial?.handover ?? 'pickup');
   const [weight, setWeight] = useState(initial ? String(initial.weightKg) : '');
   const [rate, setRate] = useState(String(initial?.ratePerKg ?? settings.costPerKg));
   const [override, setOverride] = useState(initial?.costOverride != null ? String(initial.costOverride) : '');
@@ -66,7 +69,10 @@ export function PickupForm({
         onSave(
           {
             date,
-            reference: reference.trim() || `Pickup ${shortDate(date)}`,
+            reference: reference.trim() || `${handover === 'dropoff' ? 'Drop-off' : 'Pickup'} ${shortDate(date)}`,
+            sellerAddress: address.trim(),
+            sellerPostcode: postcode.trim().toUpperCase(),
+            handover,
             weightKg,
             ratePerKg,
             costOverride: overrideValue,
@@ -81,8 +87,27 @@ export function PickupForm({
         );
       }}
     >
-      <Field label="Seller / where" hint="Their name, or an address - whatever identifies who you bought from">
-        <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Sarah Jones, 12 High St" autoFocus={!initial} />
+      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Pickup or drop-off">
+        {(['pickup', 'dropoff'] as const).map((h) => (
+          <label
+            key={h}
+            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium ${
+              handover === h ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+            }`}
+          >
+            <input type="radio" name="handover" className="sr-only" checked={handover === h} onChange={() => setHandover(h)} />
+            {handover === h ? '☑' : '☐'} {h === 'pickup' ? 'Pickup' : 'Drop-off'}
+          </label>
+        ))}
+      </div>
+      <Field label="Seller's name">
+        <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Sarah Jones" autoComplete="off" autoFocus={!initial} />
+      </Field>
+      <Field label="Address">
+        <TextArea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. 12 High Street, Leeds" />
+      </Field>
+      <Field label="Postcode" className="max-w-40">
+        <Input value={postcode} onChange={(e) => setPostcode(e.target.value.toUpperCase())} placeholder="e.g. LS1 4AB" autoCapitalize="characters" autoComplete="off" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Weight (kg)">
@@ -201,7 +226,9 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
                     <div className="truncate font-medium text-slate-900 dark:text-slate-50">{p.reference}</div>
                     <div className="text-xs text-slate-500">
                       {p.receiptNumber !== null && `No. ${p.receiptNumber} · `}
-                      {shortDate(p.date)} · {kg(p.weightKg)} · cost {money(s.totalCost)}
+                      {shortDate(p.date)} · {p.handover === 'dropoff' ? 'drop-off · ' : ''}
+                      {p.sellerPostcode && `${p.sellerPostcode} · `}
+                      {kg(p.weightKg)} · cost {money(s.totalCost)}
                     </div>
                   </div>
                   <div className={`text-right text-sm font-semibold tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>

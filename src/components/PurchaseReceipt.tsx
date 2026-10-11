@@ -24,7 +24,7 @@ export function PurchaseReceipt({ pickup, settings, onSign, onClose }: { pickup:
   const row = (label: string, value: string) => (
     <div className="flex justify-between gap-4 border-b border-slate-200 py-1.5">
       <span className="text-slate-600">{label}</span>
-      <span className="text-right font-medium tabular-nums">{value}</span>
+      <span className="whitespace-pre-line text-right font-medium tabular-nums">{value}</span>
     </div>
   );
 
@@ -42,6 +42,9 @@ export function PurchaseReceipt({ pickup, settings, onSign, onClose }: { pickup:
         </div>
         <div className="text-sm">
           {row('Bought from', pickup.reference)}
+          {pickup.sellerAddress && row('Address', pickup.sellerAddress)}
+          {pickup.sellerPostcode && row('Postcode', pickup.sellerPostcode)}
+          {row('Collection', pickup.handover === 'dropoff' ? 'Dropped off by seller' : 'Picked up from seller')}
           {row('Goods', 'Used clothing and textiles')}
           {row('Weight', rounded !== pickup.weightKg ? `${kg(pickup.weightKg)} (charged ${kg(rounded)})` : kg(pickup.weightKg))}
           {row('Rate', `${money(pickup.ratePerKg)} per kg`)}

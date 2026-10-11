@@ -113,9 +113,13 @@ export type ItemStatus = 'in_stock' | 'listed' | 'sold' | 'written_off';
 
 export interface Item {
   id: string;
+  /** Stock code, e.g. TOP-0042 - given when added, never changed */
+  sku: string;
   /** Null for stock not bought by weight (e.g. bought individually, or donated) */
   pickupId: string | null;
   name: string;
+  /** Extra search words - brand, colour, size, style */
+  keywords: string;
   category: string;
   /** Optional - empty when the category has no sub-categories or none was picked */
   subcategory: string;

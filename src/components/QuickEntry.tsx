@@ -63,6 +63,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
       {
         pickupId: pickup.id,
         name: name.trim(),
+        keywords: '',
         category: d.category,
         gender: d.gender ?? '',
         subcategory: subs.includes(d.subcategory ?? '') ? (d.subcategory ?? '') : '',

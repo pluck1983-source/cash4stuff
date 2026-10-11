@@ -19,8 +19,8 @@ describe('normaliseState', () => {
 
 describe('itemsToCsv', () => {
   it('quotes values containing commas or quotes', () => {
-    const s = normaliseState({ items: [{ id: 'i1', name: 'Jeans, "501"', category: 'Jeans' }] });
-    expect(itemsToCsv(s, s.items).split('\n')[1].startsWith('"Jeans, ""501""",Jeans')).toBe(true);
+    const s = normaliseState({ items: [{ id: 'i1', sku: 'JEA-0001', name: 'Jeans, "501"', keywords: 'blue', category: 'Jeans' }] });
+    expect(itemsToCsv(s, s.items).split('\n')[1].startsWith('JEA-0001,"Jeans, ""501""",blue,Jeans')).toBe(true);
   });
 });
 

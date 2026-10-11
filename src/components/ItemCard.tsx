@@ -23,7 +23,10 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
           {pickup && ` · ${pickup.reference}`}
         </div>
         <div className="mt-1 flex items-center justify-between gap-2">
-          <span className="truncate text-xs text-slate-500">{locationLabel(item.location) || 'No location'}</span>
+          <span className="truncate text-xs text-slate-500">
+            {item.sku && <span className="mr-1 font-mono font-semibold text-slate-700 dark:text-slate-300">{item.sku}</span>}
+            {locationLabel(item.location) || 'No location'}
+          </span>
           <StatusBadge status={item.status} />
         </div>
       </div>

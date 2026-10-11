@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppState, Audited, Employment, Expense, Item, OtherIncome, Pickup, RecurringCost, Settings } from './types';
+import { assignMissingSkus, makeSku, nextSkuNumber } from './sku';
 import { auditDefaults, nextReceiptNumber, purchaseCost, withHistory } from './audit';
 import { postDueRecurring } from './recurring';
 import { applyListEdit, type ListEdit } from './lists';
 import { loadState, newId, saveState, todayIso } from './storage';
 
 type NewPickup = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber'>;
-type NewItem = Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'>;
+type NewItem = Omit<Item, 'id' | 'sku' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'>;
 type NewEmployment = Omit<Employment, 'id' | 'updatedAt'>;
 type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId' | 'paymentMethod' | 'attachmentIds' | keyof Audited> & {
   recurringId?: string | null;
@@ -56,7 +57,9 @@ export function useAppState() {
   // change (including a sync bringing in a new plan) and when the app comes back.
   useEffect(() => {
     const posted = postDueRecurring(state, todayIso());
-    if (posted !== state) setState(posted);
+    // Items added before SKUs existed (or on a device not updated yet) get one.
+    const items = assignMissingSkus(posted.items, new Date().toISOString());
+    if (posted !== state || items !== state.items) setState({ ...posted, items });
   }, [state]);
   useEffect(() => {
     const onVisible = () => document.visibilityState === 'visible' && setState((s) => postDueRecurring(s, todayIso()));
@@ -118,8 +121,9 @@ export function useAppState() {
         const now = stamp();
         const added = createdAt ?? now;
         const priceHistory = data.listPrice !== null ? [{ date: added.slice(0, 10), price: data.listPrice }] : [];
-        const item: Item = { ...data, priceHistory, history: [], id: newId(), createdAt: added, updatedAt: now };
-        upsert('items', item);
+        const item: Item = { ...data, sku: makeSku(data.category, nextSkuNumber(stateRef.current.items)), priceHistory, history: [], id: newId(), createdAt: added, updatedAt: now };
+        // Numbered against the latest list so two quick adds can't share a SKU.
+        setState((s) => ({ ...s, items: [...s.items, { ...item, sku: makeSku(item.category, nextSkuNumber(s.items)) }] }));
         return item;
       },
       /** Saves an item; a changed asking price is added to its price history */

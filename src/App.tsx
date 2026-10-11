@@ -17,9 +17,10 @@ import { MoneyView } from './views/Money';
 import { SettingsView } from './views/Settings';
 import { FinanceView } from './views/Finance';
 import { liveState } from './lib/audit';
+import { BottomTabs, NAV, NavIcon, TAB_SECTIONS, type Section } from './components/Nav';
+import { useNavOrder } from './lib/navOrder';
 import { AdminView } from './views/Admin';
 
-type Section = 'dashboard' | 'pickups' | 'add' | 'stock' | 'money' | 'finance' | 'admin' | 'settings';
 
 function sectionOf(route: Route): Section {
   switch (route.name) {
@@ -34,30 +35,13 @@ function sectionOf(route: Route): Section {
   }
 }
 
-const NAV: { section: Section; label: string; href: string; icon: ReactNode }[] = [
-  { section: 'dashboard', label: 'Home', href: routeHref({ name: 'dashboard' }), icon: <path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9Z" /> },
-  { section: 'pickups', label: 'Pickups', href: routeHref({ name: 'pickups' }), icon: <path d="M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-.01M17 19a2 2 0 1 0 0-.01" /> },
-  { section: 'add', label: 'Add', href: routeHref({ name: 'add-item', pickupId: null }), icon: <path d="M12 5v14M5 12h14" /> },
-  { section: 'stock', label: 'Stock', href: routeHref({ name: 'stock' }), icon: <path d="M4 7h16M4 12h16M4 17h16M8 4v16" /> },
-  { section: 'money', label: 'Costs', href: routeHref({ name: 'money' }), icon: <path d="M17 6.5A5 5 0 0 0 8 9v8M6 13h7M6 17h11" /> },
-  { section: 'finance', label: 'Finance', href: routeHref({ name: 'finance' }), icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /> },
-  { section: 'admin', label: 'Admin', href: routeHref({ name: 'admin' }), icon: <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M16 4v4M8 10v4M16 16v4" /> },
-  { section: 'settings', label: 'Settings', href: routeHref({ name: 'settings' }), icon: <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM19 12l2-1-1-3-2 .3-1.4-1.4L17 5l-3-1-1 2h-2L10 4 7 5l.4 2-1.5 1.4L4 8l-1 3 2 1v0l-2 1 1 3 2-.3 1.4 1.4L7 19l3 1 1-2h2l1 2 3-1-.4-2 1.5-1.4 1.9.4 1-3-2-1Z" /> },
-];
-
-function NavIcon({ children }: { children: ReactNode }) {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {children}
-    </svg>
-  );
-}
-
 export default function App() {
   const { state: books, replaceState, actions } = useAppState();
   const sync = useCloudSync(books, replaceState);
   // Voided purchases, costs and income stay in the books but out of every total.
   const state = useMemo(() => liveState(books), [books]);
+  const tabOrder = useNavOrder(TAB_SECTIONS);
+  const tabs = tabOrder.map((sec) => NAV.find((n) => n.section === sec)!);
   const route = useRoute();
   const isDesktop = useIsDesktop();
 
@@ -159,7 +143,7 @@ export default function App() {
             <Wordmark className="text-xl" />
           </a>
           <nav className="flex flex-col gap-1">
-            {NAV.map((n) => (
+            {[...tabs, NAV.find((n) => n.section === 'settings')!].map((n) => (
               <a
                 key={n.section}
                 href={n.href}
@@ -194,9 +178,6 @@ export default function App() {
           <Wordmark className="text-xl" />
         </a>
         {syncControl}
-        <a href={routeHref({ name: 'admin' })} className={`rounded-lg p-1.5 ${section === 'admin' ? 'text-brand-700' : 'text-slate-500'}`} aria-label="Admin">
-          <NavIcon>{NAV.find((n) => n.section === 'admin')!.icon}</NavIcon>
-        </a>
         <a href={routeHref({ name: 'settings' })} className={`rounded-lg p-1.5 ${section === 'settings' ? 'text-brand-700' : 'text-slate-500'}`} aria-label="Settings">
           <NavIcon>{NAV.find((n) => n.section === 'settings')!.icon}</NavIcon>
         </a>
@@ -205,30 +186,7 @@ export default function App() {
         {syncProblem}
         {view}
       </main>
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        {NAV.filter((n) => n.section !== 'settings' && n.section !== 'admin').map((n) => (
-          <a
-            key={n.section}
-            href={n.href}
-            className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${
-              n.section === 'add'
-                ? 'text-brand-700 dark:text-brand-400'
-                : section === n.section
-                  ? 'text-brand-700 dark:text-brand-400'
-                  : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            {n.section === 'add' ? (
-              <span className="-mt-5 flex h-11 w-11 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg">
-                <NavIcon>{n.icon}</NavIcon>
-              </span>
-            ) : (
-              <NavIcon>{n.icon}</NavIcon>
-            )}
-            {n.label}
-          </a>
-        ))}
-      </nav>
+      <BottomTabs tabs={tabs} section={section} />
     </div>
   );
 }

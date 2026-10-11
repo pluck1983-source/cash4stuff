@@ -112,3 +112,11 @@ body {
     overflow: visible;
   }
 }
+
+/* Swipeable tab strip - scrolls by touch without a visible scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

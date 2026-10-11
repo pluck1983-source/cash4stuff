@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { groupBySeller, sellerKey } from '../lib/sellers';
 import type { AppState, Audited, Handover, PaymentMethod, Pickup } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { pickupStats, roundWeight } from '../lib/calc';
@@ -23,7 +24,7 @@ function previousSellers(pickups: Pickup[]): Map<string, SellerDetails> {
   const sellers = new Map<string, SellerDetails>();
   const newestFirst = [...pickups].sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
   for (const p of newestFirst) {
-    const key = p.reference.trim().toLowerCase();
+    const key = sellerKey(p);
     if (key && !sellers.has(key)) sellers.set(key, p);
   }
   return sellers;
@@ -276,44 +277,10 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
       {pickups.length === 0 && !adding ? (
         <Empty>No pickups yet.</Empty>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {pickups.map((p) => {
-            const s = pickupStats(state, p);
-            return (
-              <a
-                key={p.id}
-                href={routeHref({ name: 'pickup', id: p.id })}
-                className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-400 dark:border-slate-800 dark:bg-slate-900"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium text-slate-900 dark:text-slate-50">{p.reference}</div>
-                    {(p.sellerAddress || p.sellerPostcode) && (
-                      <div className="truncate text-xs text-slate-500">{[firstAddressLine(p.sellerAddress), p.sellerPostcode].filter(Boolean).join(', ')}</div>
-                    )}
-                    <div className="text-xs text-slate-500">
-                      {p.receiptNumber !== null && `No. ${p.receiptNumber} · `}
-                      {shortDate(p.date)} · {p.handover === 'dropoff' ? 'drop-off · ' : ''}
-                      {kg(p.weightKg)} · cost {money(s.totalCost)}
-                    </div>
-                  </div>
-                  <div className={`text-right text-sm font-semibold tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {money(s.realisedProfit)}
-                    <div className="text-xs font-normal text-slate-500">{percent(s.roi)} ROI</div>
-                  </div>
-                </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                  <div className="h-full bg-emerald-500" style={{ width: `${s.itemCount ? (s.soldCount / s.itemCount) * 100 : 0}%` }} />
-                </div>
-                <div className="mt-1.5 flex justify-between text-xs text-slate-500">
-                  <span>
-                    {s.soldCount}/{s.itemCount} sold
-                  </span>
-                  <span>{money(s.heldListValue)} still listed</span>
-                </div>
-              </a>
-            );
-          })}
+        <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {groupBySeller(pickups).map((group) =>
+            group.length === 1 ? <PickupCard key={group[0].id} state={state} pickup={group[0]} /> : <SellerGroup key={group[0].id} state={state} pickups={group} />,
+          )}
         </div>
       )}
       {voided.length > 0 && (
@@ -333,5 +300,81 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
         </details>
       )}
     </div>
+  );
+}
+
+function PickupCard({ state, pickup: p, inGroup = false }: { state: AppState; pickup: Pickup; inGroup?: boolean }) {
+  const s = pickupStats(state, p);
+  return (
+    <a
+      href={routeHref({ name: 'pickup', id: p.id })}
+      className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-400 dark:border-slate-800 dark:bg-slate-900"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          {/* In a seller's group the name and address are already in the group's heading */}
+          {!inGroup && <div className="truncate font-medium text-slate-900 dark:text-slate-50">{p.reference}</div>}
+          {!inGroup && (p.sellerAddress || p.sellerPostcode) && (
+            <div className="truncate text-xs text-slate-500">{[firstAddressLine(p.sellerAddress), p.sellerPostcode].filter(Boolean).join(', ')}</div>
+          )}
+          <div className={inGroup ? 'text-sm text-slate-700 dark:text-slate-300' : 'text-xs text-slate-500'}>
+            {p.receiptNumber !== null && `No. ${p.receiptNumber} · `}
+            {shortDate(p.date)} · {p.handover === 'dropoff' ? 'drop-off · ' : ''}
+            {kg(p.weightKg)} · cost {money(s.totalCost)}
+          </div>
+        </div>
+        <div className={`text-right text-sm font-semibold tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+          {money(s.realisedProfit)}
+          <div className="text-xs font-normal text-slate-500">{percent(s.roi)} ROI</div>
+        </div>
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className="h-full bg-emerald-500" style={{ width: `${s.itemCount ? (s.soldCount / s.itemCount) * 100 : 0}%` }} />
+      </div>
+      <div className="mt-1.5 flex justify-between text-xs text-slate-500">
+        <span>
+          {s.soldCount}/{s.itemCount} sold
+        </span>
+        <span>{money(s.heldListValue)} still listed</span>
+      </div>
+    </a>
+  );
+}
+
+/** A repeat seller's pickups under one heading, newest first - tap to open */
+function SellerGroup({ state, pickups }: { state: AppState; pickups: Pickup[] }) {
+  const latest = pickups[0];
+  const stats = pickups.map((p) => pickupStats(state, p));
+  const paid = stats.reduce((t, s) => t + s.totalCost, 0);
+  const profit = stats.reduce((t, s) => t + s.realisedProfit, 0);
+  const weight = pickups.reduce((t, p) => t + p.weightKg, 0);
+  return (
+    <details className="group rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-2 p-4 [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium text-slate-900 dark:text-slate-50">{latest.reference}</span>
+            <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800 dark:bg-brand-950 dark:text-brand-200">{pickups.length} pickups</span>
+          </div>
+          {(latest.sellerAddress || latest.sellerPostcode) && (
+            <div className="truncate text-xs text-slate-500">{[firstAddressLine(latest.sellerAddress), latest.sellerPostcode].filter(Boolean).join(', ')}</div>
+          )}
+          <div className="text-xs text-slate-500">
+            Last {shortDate(latest.date)} · {kg(weight)} · cost {money(paid)}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-start gap-2">
+          <div className={`text-right text-sm font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(profit)}</div>
+          <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-180">
+            ▾
+          </span>
+        </div>
+      </summary>
+      <div className="space-y-2 border-t border-slate-100 p-2 dark:border-slate-800">
+        {pickups.map((p) => (
+          <PickupCard key={p.id} state={state} pickup={p} inGroup />
+        ))}
+      </div>
+    </details>
   );
 }

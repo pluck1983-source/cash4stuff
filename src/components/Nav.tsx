@@ -33,6 +33,7 @@ type Tab = (typeof NAV)[number];
  * The order is set in Settings.
  */
 export function BottomTabs({ tabs, section }: { tabs: Tab[]; section: Section }) {
+  const bar = useRef<HTMLElement>(null);
   const strip = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState({ left: false, right: false });
 
@@ -47,6 +48,22 @@ export function BottomTabs({ tabs, section }: { tabs: Tab[]; section: Section })
     measure();
   }, [section, tabs.length]);
 
+  // Publish the bar's real height (home-indicator inset included) so pinned
+  // buttons and the page's bottom padding sit above it, not behind it.
+  useEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const root = document.documentElement.style;
+    const publish = () => root.setProperty('--tabs-h', `${el.offsetHeight}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.removeProperty('--tabs-h');
+    };
+  }, []);
+
   useEffect(() => {
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
@@ -55,7 +72,7 @@ export function BottomTabs({ tabs, section }: { tabs: Tab[]; section: Section })
   const scrollBy = (dir: 1 | -1) => strip.current?.scrollBy({ left: dir * (strip.current.clientWidth * 0.6), behavior: 'smooth' });
 
   return (
-    <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Tabs">
+    <nav ref={bar} className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Tabs">
       <div ref={strip} onScroll={measure} className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto">
         {tabs.map((n) => {
           const active = section === n.section;

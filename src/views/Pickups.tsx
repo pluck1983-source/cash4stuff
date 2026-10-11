@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AppState, Audited, Handover, PaymentMethod, Pickup } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { pickupStats, roundWeight } from '../lib/calc';
@@ -13,6 +13,21 @@ import { Button, Card, Empty, Field, Input, PageHeader, TextArea } from '../comp
 
 /** Tells the pickup page to open with quick entry showing */
 export const OPEN_QUICK_ENTRY_KEY = 'cash4stuff-open-quick-entry';
+/** Pickup id whose seller should be copied into a new pickup form */
+export const REPEAT_SELLER_KEY = 'cash4stuff-repeat-seller';
+
+type SellerDetails = Pick<Pickup, 'reference' | 'sellerAddress' | 'sellerPostcode' | 'sellerContact'>;
+
+/** Each seller once, with the details from their latest pickup */
+function previousSellers(pickups: Pickup[]): Map<string, SellerDetails> {
+  const sellers = new Map<string, SellerDetails>();
+  const newestFirst = [...pickups].sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
+  for (const p of newestFirst) {
+    const key = p.reference.trim().toLowerCase();
+    if (key && !sellers.has(key)) sellers.set(key, p);
+  }
+  return sellers;
+}
 
 const PAYMENT_KEY = 'cash4stuff-last-payment-method';
 
@@ -26,26 +41,32 @@ function firstAddressLine(address: string): string {
 export function PickupForm({
   state,
   initial,
+  seller,
   onSave,
   onCancel,
 }: {
   state: AppState;
   initial?: Pickup;
+  /** A previous seller to fill in on a new pickup */
+  seller?: SellerDetails;
   onSave: (data: PickupDraft, next: 'photo' | 'quick') => void;
   onCancel: () => void;
 }) {
   const { settings } = state;
   const [date, setDate] = useState(initial?.date ?? todayIso());
-  const [reference, setReference] = useState(initial?.reference ?? '');
-  const [address, setAddress] = useState(initial?.sellerAddress ?? '');
-  const [postcode, setPostcode] = useState(initial?.sellerPostcode ?? '');
+  const from = initial ?? seller;
+  const [reference, setReference] = useState(from?.reference ?? '');
+  const [address, setAddress] = useState(from?.sellerAddress ?? '');
+  const [postcode, setPostcode] = useState(from?.sellerPostcode ?? '');
+  // Each visit is a pickup unless they say otherwise, even for a repeat seller.
   const [handover, setHandover] = useState<Handover>(initial?.handover ?? 'pickup');
   const [weight, setWeight] = useState(initial ? String(initial.weightKg) : '');
   const [rate, setRate] = useState(String(initial?.ratePerKg ?? settings.costPerKg));
   const [override, setOverride] = useState(initial?.costOverride != null ? String(initial.costOverride) : '');
   const [payment, setPayment] = useState<PaymentMethod>(initial?.paymentMethod ?? ((localStorage.getItem(PAYMENT_KEY) as PaymentMethod | null) || 'cash'));
   const [bankRef, setBankRef] = useState(initial?.bankRef ?? '');
-  const [contact, setContact] = useState(initial?.sellerContact ?? '');
+  const [contact, setContact] = useState(from?.sellerContact ?? '');
+  const sellers = useMemo(() => previousSellers(state.pickups), [state.pickups]);
   const [paperSlip, setPaperSlip] = useState(initial?.paperSlipSigned ?? false);
   const [signature, setSignature] = useState<Blob | null>(null);
   const [notes, setNotes] = useState(initial?.notes ?? '');
@@ -106,7 +127,30 @@ export function PickupForm({
         ))}
       </div>
       <Field label="Seller's name">
-        <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Sarah Jones" autoComplete="off" autoFocus={!initial} />
+        <Input
+          value={reference}
+          onChange={(e) => {
+            setReference(e.target.value);
+            // Picking a previous seller fills in their details, unless some are already typed.
+            const known = sellers.get(e.target.value.trim().toLowerCase());
+            if (known && !initial && !address && !postcode && !contact) {
+              setAddress(known.sellerAddress);
+              setPostcode(known.sellerPostcode);
+              setContact(known.sellerContact);
+            }
+          }}
+          list="previous-sellers"
+          placeholder="e.g. Sarah Jones"
+          autoComplete="off"
+          autoFocus={!initial && !seller}
+        />
+        <datalist id="previous-sellers">
+          {[...sellers.values()].map((s) => (
+            <option key={s.reference} value={s.reference}>
+              {[s.sellerAddress.split(/\n|,/)[0], s.sellerPostcode].filter(Boolean).join(', ')}
+            </option>
+          ))}
+        </datalist>
       </Field>
       <Field label="Address">
         <TextArea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. 12 High Street, Leeds" />
@@ -180,7 +224,10 @@ export function PickupForm({
 }
 
 export function PickupsView({ state, books, actions }: { state: AppState; books: AppState; actions: AppActions }) {
-  const [adding, setAdding] = useState(state.pickups.length === 0);
+  // Opened from "New pickup from this seller" on a pickup's page.
+  const [repeatOf] = useState(() => state.pickups.find((p) => p.id === sessionStorage.getItem(REPEAT_SELLER_KEY)));
+  useEffect(() => sessionStorage.removeItem(REPEAT_SELLER_KEY), []);
+  const [adding, setAdding] = useState(state.pickups.length === 0 || Boolean(repeatOf));
   const pickups = [...state.pickups].sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
   const voided = books.pickups.filter((p) => p.voidedAt !== null);
 
@@ -197,9 +244,10 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
         }
       />
       {adding && (
-        <Card className="mb-4" title="New pickup">
+        <Card className="mb-4" title={repeatOf ? `New pickup from ${repeatOf.reference}` : 'New pickup'}>
           <PickupForm
             state={state}
+            seller={repeatOf}
             onCancel={() => setAdding(false)}
             onSave={(data, next) => {
               const pickup = actions.addPickup(data);

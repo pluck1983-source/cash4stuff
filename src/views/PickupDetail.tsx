@@ -6,7 +6,7 @@ import { kg, money, parseNumber, percent, shortDate } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
 import { Button, Card, Empty, Input, LinkButton, PageHeader, Select, Stat } from '../components/ui';
 import { ItemCard } from '../components/ItemCard';
-import { OPEN_QUICK_ENTRY_KEY, PickupForm } from './Pickups';
+import { OPEN_QUICK_ENTRY_KEY, PickupForm, REPEAT_SELLER_KEY } from './Pickups';
 import { QuickEntry } from '../components/QuickEntry';
 import { AuditTrail, askVoidReason } from '../components/Records';
 import { Photo } from '../components/Photo';
@@ -71,6 +71,17 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
         {pickup.paymentMethod && ` by ${paymentLabel(pickup.paymentMethod).toLowerCase()}`}
         {pickup.notes && ` · ${pickup.notes}`}
       </p>
+      {pickup.voidedAt === null && (
+        <Button
+          className="mb-4 w-full sm:w-auto"
+          onClick={() => {
+            sessionStorage.setItem(REPEAT_SELLER_KEY, pickup.id);
+            navigate({ name: 'pickups' });
+          }}
+        >
+          + New pickup from this seller
+        </Button>
+      )}
       {pickup.voidedAt !== null && (
         <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
           This purchase is <strong>voided</strong> and left out of every total{pickup.voidReason && `: ${pickup.voidReason}`}. Restore it if that was a mistake.

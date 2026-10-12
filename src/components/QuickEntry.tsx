@@ -37,6 +37,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
   const [d, setD] = useState<Defaults>(() => readDefaults(state));
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [qty, setQty] = useState('1');
   const [soldPrice, setSoldPrice] = useState('');
   const [soldDate, setSoldDate] = useState(todayIso());
   const [count, setCount] = useState(0);
@@ -57,6 +58,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
     const listPrice = parseNumber(price);
     const sold = d.status === 'sold' ? parseNumber(soldPrice) : null;
     if (d.status === 'sold' && sold === null) return;
+    const quantity = Math.max(1, Math.floor(Number(qty)) || 1);
     // Stock from a past pickup counts as in stock since the pickup, not since today.
     const backdated = pickup.date < todayIso() ? `${pickup.date}T12:00:00.000Z` : undefined;
     actions.addItem(
@@ -69,6 +71,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         subcategory: subs.includes(d.subcategory ?? '') ? (d.subcategory ?? '') : '',
         photoId: null,
         location: { area: d.area, rack: d.rack.trim(), box: d.box.trim() },
+        quantity,
         listPrice,
         status: d.status,
         listedDate: d.status === 'listed' ? todayIso() : null,
@@ -80,9 +83,10 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
       },
       backdated,
     );
-    setCount((c) => c + 1);
+    setCount((c) => c + quantity);
     setName('');
     setPrice('');
+    setQty('1');
     setSoldPrice('');
     nameRef.current?.focus();
   }
@@ -126,7 +130,19 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
             ))}
           </Select>
         )}
-        <Input type="number" inputMode="decimal" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="List £" aria-label="Listing price" />
+        <Input type="number" inputMode="decimal" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={Number(qty) > 1 ? 'List £ each' : 'List £'} aria-label="Listing price" />
+        <Input
+          type="number"
+          inputMode="numeric"
+          min="1"
+          step="1"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          onFocus={(e) => e.target.select()}
+          placeholder="Qty"
+          aria-label="Quantity"
+          title="How many identical pieces"
+        />
         <Select value={d.area} onChange={(e) => set({ area: e.target.value })} aria-label="Storage area">
           <option value="">No area</option>
           {state.settings.storageAreas.map((a) => (
@@ -142,7 +158,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         </Select>
         {d.status === 'sold' && (
           <>
-            <Input type="number" inputMode="decimal" step="0.01" min="0" value={soldPrice} onChange={(e) => setSoldPrice(e.target.value)} placeholder="Sold £" aria-label="Sold price" required />
+            <Input type="number" inputMode="decimal" step="0.01" min="0" value={soldPrice} onChange={(e) => setSoldPrice(e.target.value)} placeholder={Number(qty) > 1 ? 'Sold £ total' : 'Sold £'} aria-label="Sold price" required />
             <Input type="date" value={soldDate} onChange={(e) => setSoldDate(e.target.value)} aria-label="Sold date" />
           </>
         )}

@@ -68,7 +68,7 @@ export function pickupStats(state: AppState, pickup: Pickup): PickupStats {
   const otherIncome = pence(sum(state.otherIncome.filter((o) => o.pickupId === pickup.id).map((o) => o.amount)));
   const salesRevenue = pence(sum(sold.map((i) => i.soldPrice ?? 0)));
   const saleCosts = pence(sum(sold.map((i) => i.saleCosts)));
-  const heldListValue = pence(sum(held.map((i) => i.listPrice ?? 0)));
+  const heldListValue = pence(sum(held.map(listValue)));
   const totalCost = pence(stockCost + linkedCosts);
   const realisedProfit = pence(salesRevenue + otherIncome - saleCosts - totalCost);
   return {
@@ -76,9 +76,9 @@ export function pickupStats(state: AppState, pickup: Pickup): PickupStats {
     stockCost,
     linkedCosts,
     totalCost,
-    itemCount: items.length,
-    soldCount: sold.length,
-    heldCount: held.length,
+    itemCount: units(items),
+    soldCount: units(sold),
+    heldCount: units(held),
     salesRevenue,
     saleCosts,
     otherIncome,
@@ -86,7 +86,7 @@ export function pickupStats(state: AppState, pickup: Pickup): PickupStats {
     realisedProfit,
     projectedProfit: pence(realisedProfit + heldListValue),
     roi: totalCost > 0 ? realisedProfit / totalCost : null,
-    costPerItem: items.length > 0 ? pence(stockCost / items.length) : null,
+    costPerItem: items.length > 0 ? pence(stockCost / units(items)) : null,
   };
 }
 
@@ -186,7 +186,7 @@ export function totals(state: AppState, period: Period = ALL_TIME): Totals {
   const held = state.items.filter(isHeld);
   const perItemCost = itemCostMap(state);
   const compared = soldInPeriod.filter((i) => i.listPrice !== null && i.listPrice > 0);
-  const soldListValue = pence(sum(compared.map((i) => i.listPrice ?? 0)));
+  const soldListValue = pence(sum(compared.map(listValue)));
   const soldAgainstListValue = pence(sum(compared.map((i) => i.soldPrice ?? 0)));
   return {
     stockCost,
@@ -197,32 +197,43 @@ export function totals(state: AppState, period: Period = ALL_TIME): Totals {
     otherIncome,
     totalIncome,
     netProfit: pence(totalIncome - totalCosts),
-    itemsSold: soldInPeriod.length,
-    itemsAdded: state.items.filter((i) => inPeriod(i.createdAt, period)).length,
+    itemsSold: units(soldInPeriod),
+    // Split-off sales share their stock record's added date, so they aren't counted twice.
+    itemsAdded: units(state.items.filter((i) => inPeriod(i.createdAt, period))),
     pickups: pickups.length,
     kgBought: sum(pickups.map((p) => p.weightKg)),
-    averageSalePrice: soldInPeriod.length ? pence(salesIncome / soldInPeriod.length) : null,
+    averageSalePrice: soldInPeriod.length ? pence(salesIncome / units(soldInPeriod)) : null,
     soldListValue,
     soldAgainstListValue,
     soldVsList: soldListValue > 0 ? soldAgainstListValue / soldListValue : null,
-    heldItems: held.length,
-    listedItems: held.filter((i) => i.status === 'listed').length,
-    unpricedItems: held.filter((i) => i.listPrice === null).length,
-    stockListValue: pence(sum(held.map((i) => i.listPrice ?? 0))),
+    heldItems: units(held),
+    listedItems: units(held.filter((i) => i.status === 'listed')),
+    unpricedItems: units(held.filter((i) => i.listPrice === null)),
+    stockListValue: pence(sum(held.map(listValue))),
     stockBookCost: pence(sum(held.map((i) => perItemCost.get(i.id) ?? 0))),
   };
 }
 
 /** Each item's share of its pickup's stock cost (split evenly across the items logged from it) */
+/** Units a record stands for - most are single pieces */
+export function units(items: Item[]): number {
+  return sum(items.map((i) => i.quantity));
+}
+
+/** Asking value of a record: price each × how many */
+export function listValue(item: Item): number {
+  return (item.listPrice ?? 0) * item.quantity;
+}
+
 export function itemCostMap(state: AppState): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const item of state.items) if (item.pickupId) counts.set(item.pickupId, (counts.get(item.pickupId) ?? 0) + 1);
+  for (const item of state.items) if (item.pickupId) counts.set(item.pickupId, (counts.get(item.pickupId) ?? 0) + item.quantity);
   const result = new Map<string, number>();
   const pickupsById = new Map(state.pickups.map((p) => [p.id, p]));
   for (const item of state.items) {
     const pickup = item.pickupId ? pickupsById.get(item.pickupId) : undefined;
     if (!pickup) continue;
-    result.set(item.id, pickupStockCost(pickup, state.settings) / (counts.get(pickup.id) ?? 1));
+    result.set(item.id, (pickupStockCost(pickup, state.settings) / (counts.get(pickup.id) ?? 1)) * item.quantity);
   }
   return result;
 }
@@ -273,7 +284,7 @@ export function salesByCategory(state: AppState, period: Period = ALL_TIME): { c
     if (!isSold(i) || !inPeriod(i.soldDate, period)) continue;
     const entry = byCat.get(i.category) ?? { amount: 0, count: 0 };
     entry.amount += i.soldPrice ?? 0;
-    entry.count += 1;
+    entry.count += i.quantity;
     byCat.set(i.category, entry);
   }
   return [...byCat.entries()]

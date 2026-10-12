@@ -16,6 +16,8 @@ export interface ItemDraft {
   gender: ItemGender;
   location: StorageLocation;
   sku: string;
+  /** How many identical units */
+  quantity: number;
   listPrice: string;
   status: ItemStatus;
   /** ISO date, '' when not listed or not known */
@@ -69,7 +71,9 @@ export function ItemEditor({
   );
   const subcategories = state.settings.subcategories[draft.category] ?? [];
   const typedSku = draft.sku.trim().toUpperCase();
-  const skuClash = typedSku ? state.items.find((i) => i.id !== itemId && i.sku.toUpperCase() === typedSku) : undefined;
+  // A sale split off a quantity keeps its stock record's SKU, so sold records don't count as clashes.
+  const skuClash =
+    typedSku && draft.status !== 'sold' ? state.items.find((i) => i.id !== itemId && i.status !== 'sold' && i.sku.toUpperCase() === typedSku) : undefined;
 
   return (
     <div className="space-y-5">
@@ -161,7 +165,10 @@ export function ItemEditor({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Price £ (optional)" hint="Add it later when you list it">
+        <Field label="Quantity" hint={draft.quantity > 1 ? 'Identical pieces, sold one or more at a time' : undefined}>
+          <QuantityStepper value={draft.quantity} onChange={(quantity) => set({ quantity })} />
+        </Field>
+        <Field label={draft.quantity > 1 ? 'Price £ each (optional)' : 'Price £ (optional)'} hint="Add it later when you list it">
           <Input type="number" inputMode="decimal" step="0.01" min="0" value={draft.listPrice} onChange={(e) => set({ listPrice: e.target.value })} placeholder="Not priced" />
         </Field>
         <Field label="SKU (optional)" hint={skuClash ? undefined : 'Leave blank and one is made, e.g. TOP-0042'}>
@@ -201,6 +208,34 @@ export function ItemEditor({
       <Field label="Notes">
         <Input value={draft.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="Size, brand, condition…" />
       </Field>
+    </div>
+  );
+}
+
+/** − / number / + so a count can be set with a thumb */
+export function QuantityStepper({ value, onChange, max }: { value: number; onChange: (n: number) => void; max?: number }) {
+  const clamp = (n: number) => Math.max(1, Math.min(max ?? 999, Math.floor(n) || 1));
+  const btn = 'w-11 shrink-0 rounded-lg border border-slate-300 bg-white text-xl font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
+  return (
+    <div className="flex gap-1.5">
+      <button type="button" className={btn} aria-label="One fewer" disabled={value <= 1} onClick={() => onChange(clamp(value - 1))}>
+        −
+      </button>
+      <Input
+        type="number"
+        inputMode="numeric"
+        min="1"
+        max={max}
+        step="1"
+        aria-label="Quantity"
+        className="min-w-0 flex-1 text-center tabular-nums"
+        value={value}
+        onChange={(e) => onChange(clamp(Number(e.target.value)))}
+        onFocus={(e) => e.target.select()}
+      />
+      <button type="button" className={btn} aria-label="One more" disabled={max !== undefined && value >= max} onClick={() => onChange(clamp(value + 1))}>
+        +
+      </button>
     </div>
   );
 }

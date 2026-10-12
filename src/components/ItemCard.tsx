@@ -15,11 +15,17 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
       <Photo id={item.photoId} alt={item.name} className="h-20 w-20 shrink-0 rounded-lg" />
       <div className="min-w-0 flex-1 py-0.5">
         <div className="flex items-start justify-between gap-2">
-          <div className="truncate font-medium text-slate-900 dark:text-slate-50">{item.name || item.category}</div>
+          <div className="truncate font-medium text-slate-900 dark:text-slate-50">
+            {item.quantity > 1 && <span className="mr-1 rounded bg-brand-100 px-1 text-xs font-semibold text-brand-800 dark:bg-brand-900 dark:text-brand-200">×{item.quantity}</span>}
+            {item.name || item.category}
+          </div>
           {price === null ? (
             <div className="shrink-0 text-xs text-slate-400">No price</div>
           ) : (
-            <div className="shrink-0 font-semibold tabular-nums text-slate-900 dark:text-slate-50">{money(price)}</div>
+            <div className="shrink-0 font-semibold tabular-nums text-slate-900 dark:text-slate-50">
+              {money(price)}
+              {item.quantity > 1 && item.status !== 'sold' && <span className="text-xs font-normal text-slate-500"> each</span>}
+            </div>
           )}
         </div>
         <div className="truncate text-xs text-slate-500">

@@ -281,6 +281,7 @@ export function normaliseState(raw: unknown): AppState {
       gender: i.gender === 'mens' || i.gender === 'womens' || i.gender === 'boys' || i.gender === 'girls' ? i.gender : '',
       photoId: typeof i.photoId === 'string' ? i.photoId : null,
       location: { area: str(loc.area), rack: str(loc.rack), box: str(loc.box) },
+      quantity: Math.max(1, Math.floor(num(i.quantity) || 1)),
       listPrice,
       priceHistory: priceHistory(i.priceHistory, listPrice, createdAt),
       status: status === 'listed' || status === 'sold' || status === 'written_off' ? status : 'in_stock',
@@ -380,10 +381,10 @@ function csvCell(value: string | number | null): string {
 
 export function itemsToCsv(state: AppState, items: Item[]): string {
   const pickups = new Map(state.pickups.map((p) => [p.id, p]));
-  const header = ['SKU', 'Name', 'Keywords', 'Category', 'Sub-category', 'For', 'Status', 'Listed date', 'Pickup', 'Pickup date', 'Area', 'Rack', 'Box', 'List price', 'Sold price', 'Sold date', 'Channel', 'Sale costs', 'Notes'];
+  const header = ['SKU', 'Name', 'Keywords', 'Category', 'Sub-category', 'For', 'Status', 'Listed date', 'Pickup', 'Pickup date', 'Area', 'Rack', 'Box', 'Quantity', 'List price (each)', 'Sold price (total)', 'Sold date', 'Channel', 'Sale costs', 'Notes'];
   const rows = items.map((i) => {
     const p = i.pickupId ? pickups.get(i.pickupId) : undefined;
-    return [i.sku, i.name, i.keywords, i.category, i.subcategory, GENDER_LABELS[i.gender], i.status, i.listedDate, p?.reference ?? '', p?.date ?? '', i.location.area, i.location.rack, i.location.box, i.listPrice, i.soldPrice, i.soldDate, i.salesChannel, i.saleCosts, i.notes];
+    return [i.sku, i.name, i.keywords, i.category, i.subcategory, GENDER_LABELS[i.gender], i.status, i.listedDate, p?.reference ?? '', p?.date ?? '', i.location.area, i.location.rack, i.location.box, i.quantity, i.listPrice, i.soldPrice, i.soldDate, i.salesChannel, i.saleCosts, i.notes];
   });
   return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
 }

@@ -134,7 +134,7 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-            Items ({items.length}){s.costPerItem !== null && <span className="font-normal text-slate-500"> · {money(s.costPerItem)} cost each</span>}
+            Items ({s.itemCount}){s.costPerItem !== null && <span className="font-normal text-slate-500"> · {money(s.costPerItem)} cost each</span>}
           </h2>
           {items.length === 0 ? (
             <Empty>No items logged from this pickup yet.</Empty>

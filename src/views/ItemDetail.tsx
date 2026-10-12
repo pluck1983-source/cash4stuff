@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import type { AppState, Item } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { itemCostMap, originalListPrice, pence } from '../lib/calc';
+import { itemCostMap, listValue, originalListPrice, pence } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { goBack, navigate, routeHref } from '../lib/router';
 import { showToast } from '../lib/toast';
 import { newId, todayIso } from '../lib/storage';
 import { savePhoto } from '../lib/photos';
+import type { Sale } from '../lib/quantity';
 import { Button, Card, Chips, Empty, Field, Input, PageHeader, StatusBadge } from '../components/ui';
-import { ItemEditor, draftListPrice, type ItemDraft } from '../components/ItemEditor';
+import { ItemEditor, QuantityStepper, draftListPrice, type ItemDraft } from '../components/ItemEditor';
 
 function toDraft(item: Item): ItemDraft {
   return {
@@ -20,6 +21,7 @@ function toDraft(item: Item): ItemDraft {
     gender: item.gender,
     location: item.location,
     sku: item.sku,
+    quantity: item.quantity,
     listPrice: item.listPrice === null ? '' : String(item.listPrice),
     status: item.status,
     listedDate: item.listedDate ?? '',
@@ -70,6 +72,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       location: { area: draft.location.area, rack: draft.location.rack.trim(), box: draft.location.box.trim() },
       // Cleared SKUs get the next automatic code again.
       sku: draft.sku.trim(),
+      quantity: draft.quantity,
       listPrice: draftListPrice(draft),
       status: isSold ? 'sold' : draft.status,
       listedDate: isSold ? item.listedDate : draft.status === 'listed' ? draft.listedDate || null : null,
@@ -91,11 +94,19 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
     goBack(pickup ? { name: 'pickup', id: pickup.id } : { name: 'stock' });
   }
 
-  async function confirmSale(sale: Pick<Item, 'soldPrice' | 'soldDate' | 'salesChannel' | 'saleCosts'>) {
+  async function confirmSale(sale: Sale, count = item.quantity) {
     setSaving(true);
     try {
       const updated = await buildFromDraft();
-      actions.updateItem({ ...updated, ...sale, status: 'sold' }, item.photoId);
+      if (isSold) {
+        actions.updateItem({ ...updated, ...sale, status: 'sold' }, item.photoId);
+      } else {
+        // Unsaved edits go in first, then the sale (splitting off the units sold if not all of them).
+        actions.updateItem(updated, item.photoId);
+        actions.sellItem(updated, sale, count);
+        const left = updated.quantity - count;
+        if (left > 0) showToast(`✓ Sold ${count} - ${left} left in stock`);
+      }
       rememberChannel(sale.salesChannel);
       setSelling(false);
     } finally {
@@ -146,13 +157,13 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
               variant="primary"
               className="py-4 text-base"
               disabled={saving}
-              onClick={() => void confirmSale({ soldPrice: item.listPrice, soldDate: todayIso(), salesChannel: lastChannel(state), saleCosts: 0 })}
+              onClick={() => void confirmSale({ soldPrice: item.listPrice, soldDate: todayIso(), salesChannel: lastChannel(state), saleCosts: 0 }, 1)}
             >
-              Sold at {money(item.listPrice)}
+              {item.quantity > 1 ? `Sold 1 at ${money(item.listPrice)}` : `Sold at ${money(item.listPrice)}`}
             </Button>
           )}
           <Button variant={item.listPrice === null ? 'primary' : 'secondary'} className={`py-4 text-base ${item.listPrice === null ? 'col-span-2' : ''}`} onClick={() => setSelling(true)}>
-            {item.listPrice === null ? 'Sold it - enter price' : 'Sold - adjust price'}
+            {item.quantity > 1 ? 'Sold - choose how many' : item.listPrice === null ? 'Sold it - enter price' : 'Sold - adjust price'}
           </Button>
         </div>
       )}
@@ -171,7 +182,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
         </Card>
       </div>
 
-      {selling && <SaleDialog state={state} item={item} buyCost={buyCost} saving={saving} onCancel={() => setSelling(false)} onConfirm={(sale) => void confirmSale(sale)} />}
+      {selling && <SaleDialog state={state} item={item} buyCost={buyCost} saving={saving} onCancel={() => setSelling(false)} onConfirm={(sale, count) => void confirmSale(sale, count)} />}
     </div>
   );
 }
@@ -199,10 +210,10 @@ function rememberChannel(channel: string) {
 
 /** What it sold for, and the way back if it was a mistake */
 function SoldCard({ item, buyCost, onEdit, actions }: { item: Item; buyCost: number | undefined; onEdit: () => void; actions: AppActions }) {
-  const list = item.listPrice;
+  const list = item.listPrice === null ? null : listValue(item);
   const profit = buyCost !== undefined && item.soldPrice !== null ? item.soldPrice - item.saleCosts - buyCost : null;
   return (
-    <Card title="Sold">
+    <Card title={item.quantity > 1 ? `Sold ×${item.quantity}` : 'Sold'}>
       <div className="text-2xl font-semibold tabular-nums">{money(item.soldPrice)}</div>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
         {item.soldDate && shortDate(item.soldDate)}
@@ -216,7 +227,7 @@ function SoldCard({ item, buyCost, onEdit, actions }: { item: Item; buyCost: num
       )}
       {profit !== null && (
         <p className="mt-1 text-sm">
-          Profit on this item ≈ <strong className={profit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600'}>{money(profit)}</strong>
+          Profit on {item.quantity > 1 ? 'these' : 'this item'} ≈ <strong className={profit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600'}>{money(profit)}</strong>
         </p>
       )}
       <div className="mt-3 flex gap-2">
@@ -251,14 +262,19 @@ function SaleDialog({
   buyCost: number | undefined;
   saving: boolean;
   onCancel: () => void;
-  onConfirm: (sale: Pick<Item, 'soldPrice' | 'soldDate' | 'salesChannel' | 'saleCosts'>) => void;
+  onConfirm: (sale: Sale, count: number) => void;
 }) {
+  // Already-sold records are edited as they are; choosing how many is for new sales.
+  const askCount = item.status !== 'sold' && item.quantity > 1;
+  const [count, setCount] = useState(askCount ? 1 : item.quantity);
   const [price, setPrice] = useState(item.soldPrice !== null ? String(item.soldPrice) : '');
   const [date, setDate] = useState(item.soldDate ?? todayIso());
   const [channel, setChannel] = useState(item.salesChannel || lastChannel(state));
   const [costs, setCosts] = useState(item.saleCosts ? String(item.saleCosts) : '');
   const sold = parseNumber(price);
   const fees = parseNumber(costs) ?? 0;
+  const asking = item.listPrice === null ? null : item.listPrice * count;
+  const cost = buyCost === undefined ? undefined : (buyCost / item.quantity) * count;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onCancel}>
@@ -270,16 +286,22 @@ function SaleDialog({
         onSubmit={(e) => {
           e.preventDefault();
           if (sold === null) return;
-          onConfirm({ soldPrice: pence(sold), soldDate: date, salesChannel: channel, saleCosts: pence(fees) });
+          onConfirm({ soldPrice: pence(sold), soldDate: date, salesChannel: channel, saleCosts: pence(fees) }, count);
         }}
       >
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">What did it sell for?</h2>
         <p className="mb-4 text-sm text-slate-500">
           {item.name || item.category}
-          {item.listPrice !== null && ` · asking ${money(item.listPrice)}`}
+          {item.listPrice !== null && ` · asking ${money(item.listPrice)}${item.quantity > 1 ? ' each' : ''}`}
+          {askCount && ` · ${item.quantity} in stock`}
         </p>
         <div className="space-y-4">
-          <Field label="Final selling price (£)">
+          {askCount && (
+            <Field label="How many sold?" hint={count < item.quantity ? `${item.quantity - count} stay in stock` : 'All of them'}>
+              <QuantityStepper value={count} onChange={setCount} max={item.quantity} />
+            </Field>
+          )}
+          <Field label={count > 1 ? `Total for all ${count} (£)` : 'Final selling price (£)'}>
             <Input
               type="number"
               inputMode="decimal"
@@ -307,10 +329,10 @@ function SaleDialog({
           </div>
           {sold !== null && (
             <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-              {item.listPrice !== null && item.listPrice > 0 && <>{Math.round((sold / item.listPrice) * 100)}% of asking. </>}
-              {buyCost !== undefined && (
+              {asking !== null && asking > 0 && <>{Math.round((sold / asking) * 100)}% of asking. </>}
+              {cost !== undefined && (
                 <>
-                  Profit ≈ <strong>{money(sold - fees - buyCost)}</strong>
+                  Profit ≈ <strong>{money(sold - fees - cost)}</strong>
                 </>
               )}
             </p>

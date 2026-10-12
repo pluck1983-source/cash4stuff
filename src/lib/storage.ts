@@ -191,7 +191,7 @@ function tombstones(value: unknown): Record<string, string> {
 }
 
 function paymentMethod(value: unknown): PaymentMethod {
-  return value === 'cash' || value === 'bank' || value === 'other' ? value : '';
+  return value === 'cash' || value === 'bank' || value === 'card' || value === 'other' ? value : '';
 }
 
 function audited(r: Record<string, unknown>, createdFallback: string): Audited {

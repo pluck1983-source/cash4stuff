@@ -1,7 +1,7 @@
 import { pence, roundWeight } from './calc';
 import type { AppState, Audited, EditRecord, PaymentMethod, Settings } from './types';
 
-export const PAYMENT_LABELS: Record<Exclude<PaymentMethod, ''>, string> = { cash: 'Cash', bank: 'Bank transfer', other: 'Other' };
+export const PAYMENT_LABELS: Record<Exclude<PaymentMethod, ''>, string> = { cash: 'Cash', bank: 'Bank transfer', card: 'Card', other: 'Other' };
 
 export function paymentLabel(method: PaymentMethod): string {
   return method ? PAYMENT_LABELS[method] : '';

@@ -37,10 +37,12 @@ export function LinkButton({ href, variant = 'secondary', className = '', childr
 
 export function Field({ label, hint, children, className = '' }: { label: string; hint?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <label className={`block min-w-0 ${className}`}>
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
-      {children}
-      {hint && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{hint}</span>}
+    // Label, box and hint each take a row shared with the fields beside it, so
+    // side-by-side boxes line up even when one label wraps onto two lines.
+    <label className={`row-span-3 grid min-w-0 grid-rows-subgrid content-start gap-y-1 ${className}`}>
+      <span className="self-end text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
+      <div className="min-w-0">{children}</div>
+      {hint && <span className="text-xs text-slate-500 dark:text-slate-400">{hint}</span>}
     </label>
   );
 }

@@ -26,7 +26,7 @@ export interface Settings {
   businessAddress: string;
 }
 
-export type PaymentMethod = '' | 'cash' | 'bank' | 'other';
+export type PaymentMethod = '' | 'cash' | 'bank' | 'card' | 'other';
 
 /** One change to a record made after the day it was entered: field -> [before, after] */
 export interface EditRecord {

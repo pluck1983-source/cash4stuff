@@ -8,6 +8,7 @@ import { latestOpenPickupId, pickupChoices } from '../lib/sellers';
 import { shortDate } from '../lib/format';
 import { showToast } from '../lib/toast';
 import { Button, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
+import { QuantityStepper } from '../components/ItemEditor';
 import { LAST_KEY, readLast, type LastDefaults } from '../lib/itemDefaults';
 
 /** One photo waiting to become an item */
@@ -18,6 +19,7 @@ interface Row {
   name: string;
   pickupId: string | null;
   category: string;
+  quantity: number;
 }
 
 /**
@@ -53,7 +55,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     for (const [i, file] of files.entries()) {
       try {
         const photo = await compressImage(file);
-        const row: Row = { key: newId(), photo, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, category: defaultCategory };
+        const row: Row = { key: newId(), photo, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, category: defaultCategory, quantity: 1 };
         setRows((rs) => [...rs, row]);
       } catch {
         failed.push(file.name);
@@ -94,6 +96,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
           gender: last?.gender ?? '',
           photoId,
           location,
+          quantity: row.quantity,
           listPrice: null,
           status: 'in_stock',
           listedDate: null,
@@ -103,7 +106,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
           saleCosts: 0,
           notes: '',
         });
-        saved++;
+        saved += row.quantity;
         remove(row.key);
       }
       try {
@@ -136,6 +139,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       )),
     ];
   };
+  const pieces = rows.reduce((t, r) => t + r.quantity, 0);
   const allSame = rows.length > 0 && rows.every((r) => r.pickupId === rows[0].pickupId) ? (rows[0].pickupId ?? '') : null;
 
   return (
@@ -200,6 +204,12 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                       </option>
                     ))}
                   </Select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Qty</span>
+                    <div className="flex-1">
+                      <QuantityStepper value={r.quantity} onChange={(quantity) => update(r.key, { quantity })} />
+                    </div>
+                  </div>
                 </div>
                 <button type="button" className="self-start px-1 text-slate-400 hover:text-red-600" aria-label={`Remove photo ${i + 1}`} onClick={() => remove(r.key)} disabled={saving}>
                   ✕
@@ -210,7 +220,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
 
           <div className="sticky bottom-[var(--tabs-h)] z-10 -mx-4 mt-6 border-t border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 dark:border-slate-800 dark:bg-slate-950/95">
             <Button variant="primary" className="w-full py-3 text-base" disabled={saving || progress !== null} onClick={() => void saveAll()}>
-              {saving ? 'Saving…' : `Save ${rows.length} item${rows.length === 1 ? '' : 's'}`}
+              {saving ? 'Saving…' : `Save ${pieces} item${pieces === 1 ? '' : 's'}`}
             </Button>
           </div>
         </>

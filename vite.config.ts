@@ -34,6 +34,8 @@ export default defineConfig({
         // device (localStorage + IndexedDB for photos), so precache it all to
         // keep the app working offline after the first load.
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        // Opens the app when a Diary trip notification is tapped.
+        importScripts: ['sw-notify.js'],
         // The logo font, so the wordmark still looks right offline.
         runtimeCaching: [
           {

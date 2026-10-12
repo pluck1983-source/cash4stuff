@@ -13,6 +13,7 @@ import { AuditTrail, askVoidReason } from '../components/Records';
 import { Photo } from '../components/Photo';
 import { PurchaseReceipt } from '../components/PurchaseReceipt';
 import { paymentLabel } from '../lib/audit';
+import { mapsUrl } from '../lib/diary';
 
 export function PickupDetailView({ state, books, actions, id }: { state: AppState; books: AppState; actions: AppActions; id: string }) {
   const pickup = books.pickups.find((p) => p.id === id);
@@ -224,7 +225,17 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
           {(pickup.sellerAddress || pickup.sellerPostcode) && (
             <>
               <dt className="text-slate-500">Address</dt>
-              <dd className="whitespace-pre-line break-words">{[pickup.sellerAddress, pickup.sellerPostcode].filter(Boolean).join('\n')}</dd>
+              <dd className="whitespace-pre-line break-words">
+                <a href={mapsUrl(pickup.sellerAddress, pickup.sellerPostcode) ?? undefined} target="_blank" rel="noreferrer" className="text-sky-700 underline dark:text-sky-400">
+                  {[pickup.sellerAddress, pickup.sellerPostcode].filter(Boolean).join('\n')}
+                </a>
+              </dd>
+            </>
+          )}
+          {pickup.miles !== null && (
+            <>
+              <dt className="text-slate-500">Mileage</dt>
+              <dd>{pickup.miles} miles</dd>
             </>
           )}
           {pickup.sellerContact && (

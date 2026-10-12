@@ -9,6 +9,8 @@ import { money, parseNumber, shortDate } from '../lib/format';
 import { newId, todayIso } from '../lib/storage';
 import { compressImage, savePhoto } from '../lib/photos';
 import { Photo } from '../components/Photo';
+import { SplitReceipt } from '../components/SplitReceipt';
+import { blankLine, businessTotal, type ReceiptLine } from '../lib/receiptLines';
 import { Button, Card, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
 
 type Tab = 'costs' | 'income';
@@ -38,6 +40,9 @@ interface Draft {
 
 const WEIGHED: IncomeKind[] = ['rag', 'charity'];
 
+/** The type last given to a receipt line - shop receipts are usually the same sort of thing */
+const SPLIT_CATEGORY_KEY = 'cash4stuff-split-category';
+
 function rateKey(kind: IncomeKind) {
   return `cash4stuff-rate-${kind}`;
 }
@@ -60,6 +65,8 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
   const [periodKey, setPeriodKey] = useState<PeriodKey>('month');
   const defaultCategory = state.settings.expenseCategories[0] ?? 'Other';
   const [draft, setDraft] = useState<Draft>(() => blankDraft(defaultCategory));
+  /** Set while a receipt is being entered line by line */
+  const [lines, setLines] = useState<ReceiptLine[] | null>(null);
   const period = periodFor(periodKey);
 
   const pickups = [...state.pickups].sort((a, b) => b.date.localeCompare(a.date));
@@ -75,6 +82,33 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
   const per = draft.repeat === 'weekly' ? 'week' : 'month';
 
   function submit() {
+    if (lines && tab === 'costs') {
+      const shop = draft.description.trim();
+      const kept = lines.filter((l) => l.include && parseNumber(l.amount) !== null);
+      if (kept.length === 0) return;
+      // Each business line is its own cost (so it lands under its own type), sharing the receipt photo.
+      for (const l of kept) {
+        const what = l.description.trim();
+        actions.saveExpense({
+          date: draft.date,
+          description: [shop, what].filter(Boolean).join(': '),
+          amount: parseNumber(l.amount) ?? 0,
+          pickupId: draft.pickupId || null,
+          category: l.category,
+          recurringId: null,
+          paymentMethod: draft.paymentMethod,
+          attachmentIds: draft.attachmentIds,
+        });
+      }
+      try {
+        localStorage.setItem(SPLIT_CATEGORY_KEY, kept[kept.length - 1].category);
+      } catch {
+        // Remembering is a convenience only.
+      }
+      setLines(null);
+      setDraft({ ...blankDraft(draft.category), date: draft.date });
+      return;
+    }
     const amount = parseNumber(draft.amount);
     if (amount === null) return;
     const base = { date: draft.date, description: draft.description.trim(), amount, pickupId: draft.pickupId || null };
@@ -106,6 +140,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
   }
 
   function edit(r: Expense | OtherIncome) {
+    setLines(null);
     setDraft({
       ...blankDraft(defaultCategory),
       id: r.id,
@@ -122,6 +157,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
   }
 
   function editPlan(plan: RecurringCost) {
+    setLines(null);
     setDraft({
       planId: plan.id,
       date: plan.startDate,
@@ -163,6 +199,15 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
   }
 
   const editing = Boolean(draft.id || draft.planId);
+  const lastSplit = (() => {
+    try {
+      return localStorage.getItem(SPLIT_CATEGORY_KEY);
+    } catch {
+      return null;
+    }
+  })();
+  const splitCategory = lastSplit && state.settings.expenseCategories.includes(lastSplit) ? lastSplit : draft.category;
+  const keptCount = lines ? lines.filter((l) => l.include && parseNumber(l.amount) !== null).length : 0;
   const plans = [...state.recurring].sort((a, b) => a.category.localeCompare(b.category));
 
   return (
@@ -176,6 +221,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
             onClick={() => {
               setTab(t);
               setDraft(blankDraft(defaultCategory));
+              setLines(null);
             }}
             className={`rounded-md px-4 py-1.5 text-sm font-medium ${tab === t ? 'bg-brand-600 text-white' : 'text-slate-600 dark:text-slate-300'}`}
           >
@@ -193,7 +239,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
               submit();
             }}
           >
-            {tab === 'costs' ? (
+            {tab === 'costs' && lines ? null : tab === 'costs' ? (
               <div>
                 <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Type</span>
                 <Chips grid options={state.settings.expenseCategories} value={draft.category} onChange={(category) => setDraft({ ...draft, category })} />
@@ -231,7 +277,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
                 </div>
               </>
             )}
-            {tab === 'costs' && !draft.id && (
+            {tab === 'costs' && !draft.id && !lines && (
               <div>
                 <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Repeats</span>
                 <Chips
@@ -241,10 +287,38 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
                 />
               </div>
             )}
+            {tab === 'costs' && !draft.id && !repeating && (
+              <button
+                type="button"
+                className="text-sm font-medium text-brand-700 underline dark:text-brand-300"
+                onClick={() => setLines(lines ? null : [blankLine(splitCategory)])}
+              >
+                {lines ? 'Enter one total instead' : 'Split a receipt into lines (leave out personal items)'}
+              </button>
+            )}
+            {lines && (
+              <SplitReceipt
+                lines={lines}
+                onChange={setLines}
+                categories={state.settings.expenseCategories}
+                defaultCategory={splitCategory}
+                onPhoto={async (photo) => {
+                  const id = newId();
+                  await savePhoto(id, photo, false);
+                  setDraft((d) => ({ ...d, attachmentIds: [...d.attachmentIds, id] }));
+                }}
+              />
+            )}
             <div className="grid grid-cols-2 gap-3">
+              {lines ? (
+                <Field label="Business total">
+                  <div className="py-2 text-lg font-semibold tabular-nums">{money(businessTotal(lines))}</div>
+                </Field>
+              ) : (
               <Field label={repeating ? `Amount per ${per} (£)` : 'Amount (£)'}>
                 <Input type="number" inputMode="decimal" step="0.01" min="0" value={draft.amount} onChange={(e) => setDraft({ ...draft, amount: e.target.value })} required />
               </Field>
+              )}
               <Field label={repeating ? 'First payment' : 'Date'}>
                 <Input type="date" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} required />
               </Field>
@@ -275,8 +349,8 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
                 <PaymentChips value={draft.paymentMethod} onChange={(paymentMethod) => setDraft({ ...draft, paymentMethod })} />
               </Field>
             )}
-            <Field label="Description">
-              <Input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={tab === 'costs' ? 'e.g. 100 mailing bags' : ''} />
+            <Field label={lines ? 'Shop / supplier' : 'Description'}>
+              <Input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={lines ? 'e.g. Poundland' : tab === 'costs' ? 'e.g. 100 mailing bags' : ''} />
             </Field>
             {tab === 'costs' && !repeating && (
               <Field label="Receipts & invoices (optional)" hint="Photos are kept with the cost and go in the records ZIP">
@@ -314,7 +388,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
             </Field>
             <div className="flex gap-2">
               <Button type="submit" variant="primary" className="flex-1">
-                {editing ? 'Save' : repeating ? `Set up ${draft.repeat} cost` : 'Add'}
+                {editing ? 'Save' : repeating ? `Set up ${draft.repeat} cost` : lines ? `Add ${keptCount} cost${keptCount === 1 ? '' : 's'}` : 'Add'}
               </Button>
               {editing && <Button onClick={() => setDraft(blankDraft(defaultCategory))}>Cancel</Button>}
             </div>

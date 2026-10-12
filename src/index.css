@@ -77,6 +77,18 @@ textarea {
   }
 }
 
+/*
+ * The phone header sticks to the very top, so when installed it reaches up
+ * under the clock and battery and covers that strip itself; otherwise
+ * scrolled content shows through behind the status bar.
+ */
+@media (display-mode: standalone) {
+  .sticky-safe {
+    margin-top: calc(-1 * env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -96,13 +108,17 @@ textarea {
  * column they sit in, pushing the page wider than the screen (and the sticky
  * header then stops short). Let them shrink like any other field.
  */
-input[type="date"] {
+input[type="date"],
+input[type="time"] {
   -webkit-appearance: none;
   appearance: none;
   min-width: 0;
   display: block;
+  /* An empty time box on iPhone otherwise collapses or grows to its own height */
+  min-height: 2.625rem;
 }
-input[type="date"]::-webkit-date-and-time-value {
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
   text-align: left;
 }
 

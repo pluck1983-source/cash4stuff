@@ -11,6 +11,7 @@ import { showToast } from '../lib/toast';
 import { Button, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
 import { QuantityStepper } from '../components/ItemEditor';
 import { LAST_KEY, readLast, type LastDefaults } from '../lib/itemDefaults';
+import { ZoomableImg } from '../components/Lightbox';
 
 /** One photo waiting to become an item */
 interface Row {
@@ -197,7 +198,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
           <ul className="space-y-3">
             {rows.map((r, i) => (
               <li key={r.key} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
-                <img src={r.previewUrl} alt={`Photo ${i + 1}`} className="h-24 w-24 shrink-0 rounded-md object-cover" />
+                <ZoomableImg src={r.previewUrl} alt={`Photo ${i + 1}`} className="h-24 w-24 shrink-0 rounded-md object-cover" />
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <Input value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Name (optional)" aria-label={`Name for item ${i + 1}`} />
                   <Select value={r.pickupId ?? ''} onChange={(e) => update(r.key, { pickupId: e.target.value || null })} aria-label={`Pickup for item ${i + 1}`}>

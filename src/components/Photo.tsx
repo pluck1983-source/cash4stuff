@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { compressImage, onPhotoChanged, photoUrl } from '../lib/photos';
+import { ZoomableImg } from './Lightbox';
 
-/** Item photo thumbnail - loads from this device, or from the cloud if it was taken on another one. */
+/**
+ * Item photo thumbnail - loads from this device, or from the cloud if it was
+ * taken on another one. Tapping it opens the photo nearly full screen.
+ */
 export function Photo({ id, alt, className = '', contain = false }: { id: string | null; alt: string; className?: string; contain?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -36,7 +40,11 @@ export function Photo({ id, alt, className = '', contain = false }: { id: string
       </div>
     );
   }
-  return <div className={base}>{url && <img src={url} alt={alt} className={`h-full w-full ${contain ? 'object-contain' : 'object-cover'}`} loading="lazy" />}</div>;
+  return (
+    <div className={base}>
+      {url && <ZoomableImg src={url} alt={alt} loading="lazy" className={`h-full w-full ${contain ? 'object-contain' : 'object-cover'}`} />}
+    </div>
+  );
 }
 
 /**

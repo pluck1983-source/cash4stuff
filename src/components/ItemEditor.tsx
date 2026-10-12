@@ -6,6 +6,7 @@ import { todayIso } from '../lib/storage';
 import { pickupChoices } from '../lib/sellers';
 import { Chips, Field, Input, Select } from './ui';
 import { Photo, PhotoPicker } from './Photo';
+import { ZoomableImg } from './Lightbox';
 
 export interface ItemDraft {
   pickupId: string | null;
@@ -96,7 +97,7 @@ export function ItemEditor({
         <PhotoPicker
           preview={
             previewUrl ? (
-              <img src={previewUrl} alt="Item" className="h-full w-full object-cover" />
+              <ZoomableImg src={previewUrl} alt="Item" className="h-full w-full object-cover" />
             ) : draft.existingPhotoId ? (
               <Photo id={draft.existingPhotoId} alt={draft.name} className="h-full w-full" />
             ) : null

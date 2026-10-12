@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { routeHref } from '../lib/router';
 
-export type Section = 'dashboard' | 'pickups' | 'add' | 'stock' | 'money' | 'finance' | 'admin' | 'settings';
+export type Section = 'dashboard' | 'pickups' | 'diary' | 'add' | 'stock' | 'money' | 'finance' | 'admin' | 'settings';
 
 export const NAV: { section: Section; label: string; href: string; icon: ReactNode }[] = [
   { section: 'dashboard', label: 'Home', href: routeHref({ name: 'dashboard' }), icon: <path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9Z" /> },
   { section: 'pickups', label: 'Pickups', href: routeHref({ name: 'pickups' }), icon: <path d="M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-.01M17 19a2 2 0 1 0 0-.01" /> },
+  { section: 'diary', label: 'Diary', href: routeHref({ name: 'diary' }), icon: <path d="M5 4h14v16H5zM5 9h14M9 2v4M15 2v4M9 13h2M13 13h2M9 16h2" /> },
   { section: 'add', label: 'Add', href: routeHref({ name: 'add-item', pickupId: null }), icon: <path d="M12 5v14M5 12h14" /> },
   { section: 'stock', label: 'Stock', href: routeHref({ name: 'stock' }), icon: <path d="M4 7h16M4 12h16M4 17h16M8 4v16" /> },
   { section: 'money', label: 'Costs', href: routeHref({ name: 'money' }), icon: <path d="M17 6.5A5 5 0 0 0 8 9v8M6 13h7M6 17h11" /> },

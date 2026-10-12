@@ -53,6 +53,7 @@ export function purchasesCsv(books: AppState, year: TaxYear): string {
       p.sellerPostcode,
       p.handover === 'dropoff' ? 'drop-off' : 'pickup',
       p.sellerContact,
+      p.miles,
       p.weightKg,
       penceOf(p.ratePerKg),
       pounds(p.ratePerKg),
@@ -72,7 +73,7 @@ export function purchasesCsv(books: AppState, year: TaxYear): string {
       p.id,
     ]);
   return toCsv(
-    ['receipt_number', 'date_paid', 'seller', 'seller_address', 'seller_postcode', 'collected_or_dropped_off', 'seller_contact', 'weight_kg', 'rate_per_kg_pence', 'rate_per_kg_gbp', 'amount_pence', 'amount_gbp', 'amount_entered_by_hand', 'payment_method', 'bank_ref', 'seller_signed', 'signature_file', 'notes', 'entered_at', 'last_changed_at', 'voided_at', 'void_reason', 'edit_history', 'id'],
+    ['receipt_number', 'date_paid', 'seller', 'seller_address', 'seller_postcode', 'collected_or_dropped_off', 'seller_contact', 'miles', 'weight_kg', 'rate_per_kg_pence', 'rate_per_kg_gbp', 'amount_pence', 'amount_gbp', 'amount_entered_by_hand', 'payment_method', 'bank_ref', 'seller_signed', 'signature_file', 'notes', 'entered_at', 'last_changed_at', 'voided_at', 'void_reason', 'edit_history', 'id'],
     rows,
   );
 }

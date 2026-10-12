@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 export type Route =
   | { name: 'dashboard' }
   | { name: 'pickups' }
+  | { name: 'diary' }
   | { name: 'pickup'; id: string }
   | { name: 'add-item'; pickupId: string | null }
   | { name: 'add-photos'; pickupId: string | null }
@@ -23,6 +24,8 @@ export function parseRoute(hash: string): Route {
   switch (parts[0]) {
     case 'pickups':
       return parts[1] ? { name: 'pickup', id: parts[1] } : { name: 'pickups' };
+    case 'diary':
+      return { name: 'diary' };
     case 'add':
       return { name: 'add-item', pickupId: parts[1] ?? null };
     case 'add-photos':
@@ -48,6 +51,8 @@ export function routeHref(route: Route): string {
       return '#/';
     case 'pickups':
       return '#/pickups';
+    case 'diary':
+      return '#/diary';
     case 'pickup':
       return `#/pickups/${encodeURIComponent(route.id)}`;
     case 'add-item':

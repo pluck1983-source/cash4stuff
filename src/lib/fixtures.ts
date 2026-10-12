@@ -17,6 +17,7 @@ export function testPickup(over: Partial<Pickup> = {}): Pickup {
     paymentMethod: 'cash',
     bankRef: '',
     sellerContact: '',
+    miles: null,
     receiptNumber: null,
     signaturePhotoId: null,
     paperSlipSigned: false,

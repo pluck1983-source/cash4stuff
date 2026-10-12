@@ -1,6 +1,6 @@
 import { GENDER_LABELS } from './calc';
 import { purchaseCost } from './audit';
-import type { AppState, Audited, EditRecord, Employment, Expense, RecurringCost, Item, OtherIncome, PaymentMethod, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
+import type { AppState, Audited, Booking, EditRecord, Employment, Expense, RecurringCost, Item, OtherIncome, PaymentMethod, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
 
 const STORAGE_KEY = 'cash4stuff-state-v1';
 
@@ -90,6 +90,7 @@ export function emptyState(): AppState {
     otherIncome: [],
     employments: [],
     recurring: [],
+    bookings: [],
     tombstones: {},
     deletedPhotoIds: [],
   };
@@ -253,6 +254,7 @@ export function normaliseState(raw: unknown): AppState {
       paymentMethod: paymentMethod(p.paymentMethod),
       bankRef: str(p.bankRef),
       sellerContact: str(p.sellerContact),
+      miles: numOrNull(p.miles),
       receiptNumber: numOrNull(p.receiptNumber),
       signaturePhotoId: typeof p.signaturePhotoId === 'string' ? p.signaturePhotoId : null,
       paperSlipSigned: p.paperSlipSigned === true,
@@ -319,6 +321,21 @@ export function normaliseState(raw: unknown): AppState {
     pickupId: typeof c.pickupId === 'string' ? c.pickupId : null,
     updatedAt: str(c.updatedAt, EPOCH),
   }));
+  const bookings: Booking[] = records(r.bookings).map((b) => ({
+    id: str(b.id) || newId(),
+    date: str(b.date, now.slice(0, 10)),
+    time: str(b.time),
+    name: str(b.name),
+    address: str(b.address),
+    postcode: str(b.postcode),
+    contact: str(b.contact),
+    notes: str(b.notes),
+    status: b.status === 'done' || b.status === 'cancelled' ? b.status : 'booked',
+    pickupId: typeof b.pickupId === 'string' ? b.pickupId : null,
+    miles: numOrNull(b.miles),
+    createdAt: str(b.createdAt, now),
+    updatedAt: str(b.updatedAt, EPOCH),
+  }));
   const otherIncome: OtherIncome[] = records(r.otherIncome).map((o) => ({
     id: str(o.id) || newId(),
     date: str(o.date, now.slice(0, 10)),
@@ -350,6 +367,7 @@ export function normaliseState(raw: unknown): AppState {
     otherIncome,
     employments,
     recurring,
+    bookings,
     tombstones: tombstones(r.tombstones),
     deletedPhotoIds: strList(r.deletedPhotoIds, []),
   };

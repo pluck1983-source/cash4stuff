@@ -22,6 +22,8 @@ import { BottomTabs, NAV, NavIcon, TAB_SECTIONS, type Section } from './componen
 import { useNavOrder } from './lib/navOrder';
 import { useToast } from './lib/toast';
 import { AdminView } from './views/Admin';
+import { DiaryView } from './views/Diary';
+import { TripBar } from './components/TripBar';
 
 
 function sectionOf(route: Route): Section {
@@ -75,6 +77,9 @@ export default function App() {
       break;
     case 'pickups':
       view = <PickupsView state={state} books={books} actions={actions} />;
+      break;
+    case 'diary':
+      view = <DiaryView state={state} actions={actions} />;
       break;
     case 'pickup':
       view = <PickupDetailView state={state} books={books} actions={actions} id={route.id} />;
@@ -180,6 +185,9 @@ export default function App() {
           </div>
         </aside>
         <main className="min-w-0 flex-1 p-6 xl:p-8">
+          <div className="sticky top-0 z-30 mb-3 empty:hidden">
+            <TripBar actions={actions} />
+          </div>
           {syncProblem}
           {view}
         </main>
@@ -190,7 +198,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen pb-[calc(var(--tabs-h)+1rem)] text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
+      <div className="sticky top-0 z-20">
+      <header className="flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
         <a href={routeHref({ name: 'dashboard' })} className="flex min-w-0 flex-1 items-center" aria-label="Wardrobe to Wallet - home">
           <Wordmark className="text-xl" />
         </a>
@@ -199,6 +208,8 @@ export default function App() {
           <NavIcon>{NAV.find((n) => n.section === 'settings')!.icon}</NavIcon>
         </a>
       </header>
+      <TripBar actions={actions} />
+      </div>
       <main className="p-4">
         {syncProblem}
         {view}

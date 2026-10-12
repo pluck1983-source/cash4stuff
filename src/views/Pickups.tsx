@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { groupBySeller, sellerKey } from '../lib/sellers';
-import type { AppState, Audited, Handover, PaymentMethod, Pickup } from '../lib/types';
+import type { AppState, Audited, Booking, Handover, PaymentMethod, Pickup } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { pickupStats, roundWeight } from '../lib/calc';
 import { purchaseCost } from '../lib/audit';
@@ -16,8 +16,10 @@ import { Button, Card, Empty, Field, Input, PageHeader, TextArea } from '../comp
 export const OPEN_QUICK_ENTRY_KEY = 'cash4stuff-open-quick-entry';
 /** Pickup id whose seller should be copied into a new pickup form */
 export const REPEAT_SELLER_KEY = 'cash4stuff-repeat-seller';
+/** Diary booking id to start a pickup from */
+export const FROM_BOOKING_KEY = 'cash4stuff-pickup-from-booking';
 
-type SellerDetails = Pick<Pickup, 'reference' | 'sellerAddress' | 'sellerPostcode' | 'sellerContact'>;
+type SellerDetails = Pick<Pickup, 'reference' | 'sellerAddress' | 'sellerPostcode' | 'sellerContact'> & { miles?: number | null };
 
 /** Each seller once, with the details from their latest pickup */
 function previousSellers(pickups: Pickup[]): Map<string, SellerDetails> {
@@ -71,6 +73,7 @@ export function PickupForm({
   const [paperSlip, setPaperSlip] = useState(initial?.paperSlipSigned ?? false);
   const [signature, setSignature] = useState<Blob | null>(null);
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [miles, setMiles] = useState(from?.miles != null ? String(from.miles) : '');
   const [saving, setSaving] = useState(false);
 
   const weightKg = parseNumber(weight) ?? 0;
@@ -106,6 +109,7 @@ export function PickupForm({
             paymentMethod: payment,
             bankRef: payment === 'bank' ? bankRef.trim() : '',
             sellerContact: contact.trim(),
+            miles: parseNumber(miles),
             paperSlipSigned: paperSlip,
             signaturePhotoId,
             notes: notes.trim(),
@@ -203,6 +207,9 @@ export function PickupForm({
           <Input value={contact} onChange={(e) => setContact(e.target.value)} />
         </Field>
       </div>
+      <Field label="Miles (optional)" hint="There and back - filled in by the Diary's trip tracker when you use it">
+        <Input type="number" inputMode="decimal" step="0.1" min="0" value={miles} onChange={(e) => setMiles(e.target.value)} placeholder="0.0" className="max-w-40" />
+      </Field>
       <Field label="Actually paid (optional)" hint="If you paid something other than weight × rate - or, for stock you already had, what you paid when you don't know the weight">
         <Input type="number" inputMode="decimal" step="0.01" min="0" value={override} onChange={(e) => setOverride(e.target.value)} placeholder={money(calculated)} />
       </Field>
@@ -238,7 +245,17 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
   // Opened from "New pickup from this seller" on a pickup's page.
   const [repeatOf] = useState(() => state.pickups.find((p) => p.id === sessionStorage.getItem(REPEAT_SELLER_KEY)));
   useEffect(() => sessionStorage.removeItem(REPEAT_SELLER_KEY), []);
-  const [adding, setAdding] = useState(state.pickups.length === 0 || Boolean(repeatOf));
+  // Opened from "Start pickup" on a Diary booking.
+  const [booking] = useState<Booking | undefined>(() => state.bookings.find((b) => b.id === sessionStorage.getItem(FROM_BOOKING_KEY)));
+  useEffect(() => sessionStorage.removeItem(FROM_BOOKING_KEY), []);
+  const fromBooking: SellerDetails | undefined = booking && {
+    reference: booking.name,
+    sellerAddress: booking.address,
+    sellerPostcode: booking.postcode,
+    sellerContact: booking.contact,
+    miles: booking.miles,
+  };
+  const [adding, setAdding] = useState(state.pickups.length === 0 || Boolean(repeatOf) || Boolean(booking));
   const pickups = [...state.pickups].sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
   const voided = books.pickups.filter((p) => p.voidedAt !== null);
 
@@ -255,13 +272,14 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
         }
       />
       {adding && (
-        <Card className="mb-4" title={repeatOf ? `New pickup from ${repeatOf.reference}` : 'New pickup'}>
+        <Card className="mb-4" title={booking ? `Pickup for ${booking.name || 'diary booking'}` : repeatOf ? `New pickup from ${repeatOf.reference}` : 'New pickup'}>
           <PickupForm
             state={state}
-            seller={repeatOf}
+            seller={fromBooking ?? repeatOf}
             onCancel={() => setAdding(false)}
             onSave={(data, next) => {
               const pickup = actions.addPickup(data);
+              if (booking) actions.completeBooking(booking.id, pickup.id);
               setAdding(false);
               if (next === 'done') return;
               if (next === 'quick') {

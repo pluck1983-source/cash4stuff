@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AppState, Audited, Employment, Expense, Item, OtherIncome, Pickup, RecurringCost, Settings } from './types';
+import type { AppState, Audited, Booking, Employment, Expense, Item, OtherIncome, Pickup, RecurringCost, Settings } from './types';
 import { assignMissingSkus, makeSku, nextSkuNumber } from './sku';
 import { auditDefaults, nextReceiptNumber, purchaseCost, withHistory } from './audit';
 import { postDueRecurring } from './recurring';
@@ -17,8 +17,9 @@ type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId' | 'paymentMet
 };
 type NewRecurring = Omit<RecurringCost, 'id' | 'updatedAt'>;
 type NewIncome = Omit<OtherIncome, 'id' | 'updatedAt' | keyof Audited>;
+type NewBooking = Omit<Booking, 'id' | 'createdAt' | 'updatedAt'>;
 
-const PICKUP_FIELDS: (keyof Pickup)[] = ['date', 'reference', 'sellerAddress', 'sellerPostcode', 'handover', 'weightKg', 'ratePerKg', 'costOverride', 'amountPaid', 'paymentMethod', 'bankRef', 'sellerContact', 'paperSlipSigned', 'signaturePhotoId', 'notes'];
+const PICKUP_FIELDS: (keyof Pickup)[] = ['date', 'reference', 'sellerAddress', 'sellerPostcode', 'handover', 'weightKg', 'ratePerKg', 'costOverride', 'amountPaid', 'paymentMethod', 'bankRef', 'sellerContact', 'miles', 'paperSlipSigned', 'signaturePhotoId', 'notes'];
 const EXPENSE_FIELDS: (keyof Expense)[] = ['date', 'category', 'description', 'amount', 'paymentMethod', 'pickupId', 'attachmentIds'];
 const INCOME_FIELDS: (keyof OtherIncome)[] = ['date', 'kind', 'buyer', 'weightKg', 'description', 'amount', 'paymentMethod', 'pickupId'];
 const SALE_FIELDS: (keyof Item)[] = ['status', 'soldPrice', 'soldDate', 'salesChannel', 'saleCosts'];
@@ -184,6 +185,31 @@ export function useAppState() {
        * happened); ones now outside the start/end dates are voided, and any
        * newly due are posted straight away.
        */
+      saveBooking(data: NewBooking & { id?: string }): Booking {
+        const now = stamp();
+        const existing = data.id ? stateRef.current.bookings.find((b) => b.id === data.id) : undefined;
+        const booking: Booking = { ...data, id: data.id ?? newId(), createdAt: existing?.createdAt ?? now, updatedAt: now };
+        setState((s) => ({ ...s, bookings: s.bookings.some((b) => b.id === booking.id) ? s.bookings.map((b) => (b.id === booking.id ? booking : b)) : [...s.bookings, booking] }));
+        return booking;
+      },
+      deleteBooking(id: string) {
+        setState((s) => ({ ...s, bookings: s.bookings.filter((b) => b.id !== id), tombstones: { ...s.tombstones, [id]: stamp() } }));
+      },
+      /** Links the pickup recorded at a booked visit, and marks the booking done */
+      completeBooking(bookingId: string, pickupId: string) {
+        const now = stamp();
+        setState((s) => ({ ...s, bookings: s.bookings.map((b) => (b.id === bookingId ? { ...b, status: 'done', pickupId, updatedAt: now } : b)) }));
+      },
+      /** Saves a trip's miles on the booking, and on its pickup if one is recorded */
+      setBookingMiles(bookingId: string, miles: number) {
+        const now = stamp();
+        setState((s) => {
+          const booking = s.bookings.find((b) => b.id === bookingId);
+          if (!booking) return s;
+          const pickups = s.pickups.map((p) => (p.id === booking.pickupId ? withHistory(p, { ...p, miles, updatedAt: now }, now, PICKUP_FIELDS) : p));
+          return { ...s, pickups, bookings: s.bookings.map((b) => (b.id === bookingId ? { ...b, miles, updatedAt: now } : b)) };
+        });
+      },
       saveRecurring(data: NewRecurring & { id?: string }) {
         const now = stamp();
         const plan: RecurringCost = { ...data, id: data.id ?? newId(), updatedAt: now };

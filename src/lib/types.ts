@@ -95,6 +95,8 @@ export interface Pickup extends Audited {
   bankRef: string;
   /** Seller's phone or email, in case HMRC asks */
   sellerContact: string;
+  /** Business miles driven for this pickup (there and back), if recorded */
+  miles: number | null;
   /** Sequential purchase receipt number, given once and never changed */
   receiptNumber: number | null;
   /** On-screen seller signature, kept in the photo store */
@@ -225,6 +227,29 @@ export interface Employment {
   updatedAt: string;
 }
 
+export type BookingStatus = 'booked' | 'done' | 'cancelled';
+
+/** A pickup arranged in the Diary - who, where and when */
+export interface Booking {
+  id: string;
+  /** ISO date agreed for the pickup */
+  date: string;
+  /** "HH:MM", or '' when no time was agreed */
+  time: string;
+  name: string;
+  address: string;
+  postcode: string;
+  contact: string;
+  notes: string;
+  status: BookingStatus;
+  /** The pickup recorded for it, once done */
+  pickupId: string | null;
+  /** Round-trip miles tracked (or typed) for the visit */
+  miles: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppState {
   version: 1;
   settings: Settings;
@@ -235,6 +260,7 @@ export interface AppState {
   otherIncome: OtherIncome[];
   employments: Employment[];
   recurring: RecurringCost[];
+  bookings: Booking[];
   /**
    * Record id -> when it was deleted. Kept so a device that still has the
    * record doesn't bring it back when the two copies are merged.

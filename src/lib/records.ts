@@ -84,7 +84,7 @@ export function salesCsv(books: AppState, year: TaxYear): string {
   for (const i of books.items) {
     if (!isSold(i) || !inPeriod(i.soldDate, year.period)) continue;
     const price = i.soldPrice ?? 0;
-    rows.push([i.soldDate, 'item', i.salesChannel, [i.name, i.category, i.subcategory].filter(Boolean).join(' · '), '', 1, penceOf(price), pounds(price), penceOf(i.saleCosts), pounds(i.saleCosts), '', i.pickupId ? receipts.get(i.pickupId) ?? '' : '', i.createdAt, null, '', history(i.history), i.id]);
+    rows.push([i.soldDate, 'item', i.salesChannel, [i.name, i.category, i.subcategory].filter(Boolean).join(' · '), '', i.quantity, penceOf(price), pounds(price), penceOf(i.saleCosts), pounds(i.saleCosts), '', i.pickupId ? receipts.get(i.pickupId) ?? '' : '', i.createdAt, null, '', history(i.history), i.id]);
   }
   for (const o of books.otherIncome) {
     if (!inPeriod(o.date, year.period)) continue;

@@ -4,6 +4,7 @@ import type { AppState } from '../lib/types';
 import {
   PERIOD_LABELS,
   expensesByCategory,
+  listValue,
   locationLabel,
   monthlySeries,
   periodFor,
@@ -363,8 +364,8 @@ function LocationBreakdown({ state }: { state: AppState }) {
     if (i.status !== 'in_stock' && i.status !== 'listed') continue;
     const key = [i.location.area || 'No location', i.location.rack && `Rack ${i.location.rack}`].filter(Boolean).join(' · ');
     const e = byArea.get(key) ?? { count: 0, value: 0 };
-    e.count += 1;
-    e.value += i.listPrice ?? 0;
+    e.count += i.quantity;
+    e.value += listValue(i);
     byArea.set(key, e);
   }
   const rows = [...byArea.entries()].map(([label, v]) => ({ label, value: v.value, sub: `${v.count} items` })).sort((a, b) => b.value - a.value);

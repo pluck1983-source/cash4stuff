@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppState, Item } from '../lib/types';
-import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, categoryLabel, filterItems, locationLabel, priceDrop, type ItemFilter } from '../lib/calc';
+import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, categoryLabel, filterItems, locationLabel, listValue, priceDrop, units, type ItemFilter } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { routeHref, useIsDesktop } from '../lib/router';
 import { downloadText, itemsToCsv, todayIso } from '../lib/storage';
@@ -56,7 +56,8 @@ export function StockView({ state }: { state: AppState }) {
     return list.sort(sorters[sort]);
   }, [state, filter, sort]);
 
-  const listValue = items.reduce((t, i) => t + (i.status === 'sold' ? 0 : (i.listPrice ?? 0)), 0);
+  const heldValue = items.reduce((t, i) => t + (i.status === 'sold' ? 0 : listValue(i)), 0);
+  const unitCount = units(items);
   const soldValue = items.reduce((t, i) => t + (i.status === 'sold' ? (i.soldPrice ?? 0) : 0), 0);
   const racks = [...new Set(state.items.filter((i) => !filter.area || i.location.area === filter.area).map((i) => i.location.rack).filter(Boolean))].sort();
   const boxes = [
@@ -177,8 +178,8 @@ export function StockView({ state }: { state: AppState }) {
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 dark:text-slate-400">
         <span>
-          <strong className="text-slate-900 dark:text-slate-100">{items.length}</strong> item{items.length === 1 ? '' : 's'}
-          {listValue > 0 && <> · {money(listValue)} listed value</>}
+          <strong className="text-slate-900 dark:text-slate-100">{unitCount}</strong> item{unitCount === 1 ? '' : 's'}
+          {heldValue > 0 && <> · {money(heldValue)} listed value</>}
           {soldValue > 0 && <> · {money(soldValue)} sold</>}
         </span>
         <span className="flex items-center gap-2">
@@ -225,7 +226,10 @@ export function StockView({ state }: { state: AppState }) {
                       <Photo id={i.photoId} alt={i.name} className="h-12 w-12 rounded-md" />
                     </td>
                     <td className="p-2">
-                      <div className="font-medium text-slate-900 dark:text-slate-100">{i.name || i.category}</div>
+                      <div className="font-medium text-slate-900 dark:text-slate-100">
+                        {i.name || i.category}
+                        {i.quantity > 1 && <span className="ml-1 text-slate-500">×{i.quantity}</span>}
+                      </div>
                       <div className="text-xs text-slate-500">{categoryLabel(i)}</div>
                     </td>
                     <td className="p-2 text-slate-600 dark:text-slate-300">{p?.reference ?? '-'}</td>
@@ -240,7 +244,7 @@ export function StockView({ state }: { state: AppState }) {
                     <td className="p-2 text-right tabular-nums">
                       {i.status === 'sold' ? money(i.soldPrice) : '-'}
                       {i.status === 'sold' && i.listPrice ? (
-                        <div className="text-xs text-slate-500">{Math.round(((i.soldPrice ?? 0) / i.listPrice) * 100)}% of list</div>
+                        <div className="text-xs text-slate-500">{Math.round(((i.soldPrice ?? 0) / listValue(i)) * 100)}% of list</div>
                       ) : null}
                     </td>
                     <td className="p-2 text-slate-600 dark:text-slate-300">{i.status === 'sold' ? `${i.salesChannel} ${shortDate(i.soldDate)}` : '-'}</td>

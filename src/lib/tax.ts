@@ -1,5 +1,5 @@
 import type { AppState, Employment, TaxExpenseBox } from './types';
-import { inPeriod, isSold, pence, pickupStockCost, type Period } from './calc';
+import { inPeriod, isSold, pence, pickupStockCost, units, type Period } from './calc';
 
 /**
  * Self-assessment helpers for a sole trader using the cash basis (the
@@ -154,7 +154,7 @@ export function tradingSummary(state: AppState, year: TaxYear, rates = RATES): T
     profitActual,
     profitWithAllowance,
     allowanceIsBetter: profitWithAllowance < profitActual,
-    itemsSold: sold.length,
+    itemsSold: units(sold),
     pickups: pickups.length,
   };
 }

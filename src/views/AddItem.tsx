@@ -21,6 +21,7 @@ function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
     gender: last?.gender ?? '',
     location: last?.location ?? { area: state.settings.storageAreas[0] ?? '', rack: '', box: '' },
     sku: '',
+    quantity: 1,
     listPrice: '',
     status: 'in_stock',
     listedDate: '',
@@ -33,10 +34,11 @@ function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
 export function AddItemView({ state, actions, pickupId }: { state: AppState; actions: AppActions; pickupId: string | null }) {
   const [draft, setDraft] = useState<ItemDraft>(() => freshDraft(state, pickupId ?? latestOpenPickupId(state.pickups)));
   const [saving, setSaving] = useState(false);
-  const [added, setAdded] = useState<{ name: string; price: number | null }[]>([]);
+  const [added, setAdded] = useState<{ name: string; price: number | null; quantity: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const pickup = state.pickups.find((p) => p.id === draft.pickupId);
+  const addedCount = added.reduce((t, a) => t + a.quantity, 0);
 
   async function save(another: boolean) {
     setSaving(true);
@@ -58,6 +60,7 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
         photoId,
         location: { area: draft.location.area, rack: draft.location.rack.trim(), box: draft.location.box.trim() },
         sku: draft.sku.trim(),
+        quantity: draft.quantity,
         listPrice,
         status: draft.status,
         listedDate: draft.status === 'listed' ? draft.listedDate || null : null,
@@ -69,7 +72,7 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
       });
       localStorage.setItem(LAST_KEY, JSON.stringify({ category: draft.category, subcategory: draft.subcategory, gender: draft.gender, location: draft.location } satisfies LastDefaults));
       if (another) {
-        setAdded((a) => [{ name: draft.name.trim() || draft.category, price: listPrice }, ...a]);
+        setAdded((a) => [{ name: draft.name.trim() || draft.category, price: listPrice, quantity: draft.quantity }, ...a]);
         setDraft({ ...freshDraft(state, draft.pickupId), status: draft.status, listedDate: draft.listedDate });
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
@@ -95,8 +98,9 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
       />
       {added.length > 0 && (
         <div className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-          ✓ Added {added.length} item{added.length === 1 ? '' : 's'} - last: {added[0].name}
-          {added[0].price !== null && ` (${money(added[0].price)})`}
+          ✓ Added {addedCount} item{addedCount === 1 ? '' : 's'} - last: {added[0].name}
+          {added[0].quantity > 1 && ` ×${added[0].quantity}`}
+          {added[0].price !== null && ` (${money(added[0].price)}${added[0].quantity > 1 ? ' each' : ''})`}
         </div>
       )}
       <form

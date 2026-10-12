@@ -4,11 +4,12 @@ import { assignMissingSkus, makeSku, nextSkuNumber } from './sku';
 import { auditDefaults, nextReceiptNumber, purchaseCost, withHistory } from './audit';
 import { postDueRecurring } from './recurring';
 import { applyListEdit, type ListEdit } from './lists';
+import { splitSale, type Sale } from './quantity';
 import { setResolved } from './sellers';
 import { loadState, newId, saveState, todayIso } from './storage';
 
 type NewPickup = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber' | 'resolvedAt'>;
-type NewItem = Omit<Item, 'id' | 'sku' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'> & { sku?: string };
+type NewItem = Omit<Item, 'id' | 'sku' | 'quantity' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'> & { sku?: string; quantity?: number };
 type NewEmployment = Omit<Employment, 'id' | 'updatedAt'>;
 type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId' | 'paymentMethod' | 'attachmentIds' | keyof Audited> & {
   recurringId?: string | null;
@@ -86,7 +87,14 @@ export function useAppState() {
       }));
     }
 
-    return {
+    /** Deletes a photo unless another record (a split-off sale) still shows it */
+    function dropPhoto(photoId: string, fromItemId: string) {
+      setState((s) =>
+        s.items.some((i) => i.id !== fromItemId && i.photoId === photoId) ? s : { ...s, deletedPhotoIds: [...s.deletedPhotoIds, photoId] },
+      );
+    }
+
+    const api = {
       /** Saves a purchase with its cost worked out now, and the next receipt number */
       addPickup(data: NewPickup): Pickup {
         const now = stamp();
@@ -134,7 +142,7 @@ export function useAppState() {
         const added = createdAt ?? now;
         const priceHistory = data.listPrice !== null ? [{ date: added.slice(0, 10), price: data.listPrice }] : [];
         const typed = data.sku?.trim() ?? '';
-        const item: Item = { ...data, sku: typed || makeSku(data.category, nextSkuNumber(stateRef.current.items)), priceHistory, history: [], id: newId(), createdAt: added, updatedAt: now };
+        const item: Item = { ...data, quantity: Math.max(1, Math.floor(data.quantity ?? 1)), sku: typed || makeSku(data.category, nextSkuNumber(stateRef.current.items)), priceHistory, history: [], id: newId(), createdAt: added, updatedAt: now };
         // Numbered against the latest list so two quick adds can't share a SKU.
         setState((s) => ({ ...s, items: [...s.items, { ...item, sku: typed || makeSku(item.category, nextSkuNumber(s.items)) }] }));
         return item;
@@ -157,18 +165,28 @@ export function useAppState() {
           const next = { ...item, priceHistory, history, updatedAt: stamp() };
           return { ...s, items: previous ? s.items.map((i) => (i.id === item.id ? next : i)) : [...s.items, next] };
         });
-        if (replacedPhotoId && replacedPhotoId !== item.photoId) {
-          setState((s) => ({ ...s, deletedPhotoIds: [...s.deletedPhotoIds, replacedPhotoId] }));
+        if (replacedPhotoId && replacedPhotoId !== item.photoId) dropPhoto(replacedPhotoId, item.id);
+      },
+      /**
+       * Records a sale. Selling only some of a quantity splits the sold units off
+       * into their own sold record (same SKU and photo), so each sale stays one
+       * line in the books and the rest stays in stock.
+       */
+      sellItem(item: Item, sale: Sale, count = item.quantity) {
+        const sold = Math.min(item.quantity, Math.max(1, Math.floor(count)));
+        if (sold >= item.quantity) {
+          api.updateItem({ ...item, ...sale, status: 'sold' });
+          return;
         }
+        const now = stamp();
+        const id = newId();
+        setState((s) => ({ ...s, items: splitSale(s.items, item, sale, sold, now, id) }));
       },
       /** Sold items can't be deleted - their sale is part of the books */
       deleteItem(item: Item) {
         if (item.status === 'sold') return;
         remove('items', item.id);
-        if (item.photoId) {
-          const photoId = item.photoId;
-          setState((s) => ({ ...s, deletedPhotoIds: [...s.deletedPhotoIds, photoId] }));
-        }
+        if (item.photoId) dropPhoto(item.photoId, item.id);
       },
       saveExpense(data: NewExpense & { id?: string }) {
         const now = stamp();
@@ -276,6 +294,7 @@ export function useAppState() {
         setState((s) => applyListEdit(s, edit, stamp()));
       },
     };
+    return api;
   }, []);
 
   return { state, replaceState, actions };

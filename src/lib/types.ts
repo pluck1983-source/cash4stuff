@@ -140,7 +140,9 @@ export interface Item {
   /** Key of the compressed photo in the photo store, if one was taken */
   photoId: string | null;
   location: StorageLocation;
-  /** Current asking price, null if not yet priced */
+  /** How many identical units this record covers (1 for a single piece) */
+  quantity: number;
+  /** Current asking price per unit, null if not yet priced */
   listPrice: number | null;
   /** Every asking price it has had, oldest first - so reductions and sold-vs-listed can be tracked */
   priceHistory: PricePoint[];
@@ -148,6 +150,7 @@ export interface Item {
   status: ItemStatus;
   /** ISO date it went up online; null if not listed or listed before this was recorded */
   listedDate: string | null;
+  /** Total for every unit in this record (a part-sold record is split off, so this is what that sale took) */
   soldPrice: number | null;
   /** ISO date */
   soldDate: string | null;

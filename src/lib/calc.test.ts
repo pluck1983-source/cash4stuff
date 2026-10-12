@@ -22,6 +22,7 @@ function item(over: Partial<Item> = {}): Item {
     gender: '',
     photoId: null,
     location: { area: 'Garage', rack: 'A', box: '3' },
+    quantity: 1,
     listPrice: 10,
     priceHistory: [],
     status: 'listed',

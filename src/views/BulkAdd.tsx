@@ -5,7 +5,8 @@ import { navigate, routeHref } from '../lib/router';
 import { newId } from '../lib/storage';
 import { compressImage, savePhoto } from '../lib/photos';
 import { latestOpenPickupId, pickupChoices } from '../lib/sellers';
-import { shortDate } from '../lib/format';
+import { parseNumber, shortDate } from '../lib/format';
+import { pence } from '../lib/calc';
 import { showToast } from '../lib/toast';
 import { Button, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
 import { QuantityStepper } from '../components/ItemEditor';
@@ -20,6 +21,8 @@ interface Row {
   pickupId: string | null;
   category: string;
   quantity: number;
+  /** Asking price each, as typed ('' = not priced yet) */
+  price: string;
 }
 
 /**
@@ -55,7 +58,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     for (const [i, file] of files.entries()) {
       try {
         const photo = await compressImage(file);
-        const row: Row = { key: newId(), photo, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, category: defaultCategory, quantity: 1 };
+        const row: Row = { key: newId(), photo, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, category: defaultCategory, quantity: 1, price: '' };
         setRows((rs) => [...rs, row]);
       } catch {
         failed.push(file.name);
@@ -97,7 +100,10 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
           photoId,
           location,
           quantity: row.quantity,
-          listPrice: null,
+          listPrice: (() => {
+            const price = parseNumber(row.price);
+            return price === null ? null : pence(price);
+          })(),
           status: 'in_stock',
           listedDate: null,
           soldPrice: null,
@@ -145,7 +151,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader title="Add from photos" back={routeHref({ name: 'add-item', pickupId })} />
-      <p className="-mt-2 mb-4 text-sm text-slate-500">Choose several photos - each one becomes an item. Price and the other details can be added on each item later.</p>
+      <p className="-mt-2 mb-4 text-sm text-slate-500">Choose several photos - each one becomes an item. Set how many and the list price here if you know them; everything else can be added on each item later.</p>
 
       <Button variant={rows.length ? 'secondary' : 'primary'} className="mb-4 w-full py-3 text-base" disabled={progress !== null || saving} onClick={() => libraryRef.current?.click()}>
         {progress ? `Processing ${progress.done} of ${progress.total}…` : rows.length ? '+ Choose more photos' : '📷 Choose photos'}
@@ -209,6 +215,20 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                     <div className="flex-1">
                       <QuantityStepper value={r.quantity} onChange={(quantity) => update(r.key, { quantity })} />
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{r.quantity > 1 ? '£ each' : 'Price £'}</span>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      value={r.price}
+                      onChange={(e) => update(r.key, { price: e.target.value })}
+                      placeholder="Optional"
+                      aria-label={`List price for item ${i + 1}`}
+                      className="flex-1"
+                    />
                   </div>
                 </div>
                 <button type="button" className="self-start px-1 text-slate-400 hover:text-red-600" aria-label={`Remove photo ${i + 1}`} onClick={() => remove(r.key)} disabled={saving}>

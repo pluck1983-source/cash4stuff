@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppState } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { pickupStats } from '../lib/calc';
+import { customerStats, pickupStats } from '../lib/calc';
 import { kg, money, parseNumber, percent, shortDate } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
 import { Button, Card, Empty, Input, LinkButton, PageHeader, Select, Stat } from '../components/ui';
@@ -33,8 +33,11 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
     );
   }
 
-  const s = pickupStats(state, pickup);
-  const items = state.items.filter((i) => i.pickupId === pickup.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // Items are logged to the customer, so the figures and items cover all of their pickups.
+  const customerPickups = sellerPickups(state.pickups, pickup.id);
+  const ids = new Set(customerPickups.map((p) => p.id));
+  const s = customerStats(state, pickup.id) ?? pickupStats(state, pickup);
+  const items = state.items.filter((i) => i.pickupId !== null && ids.has(i.pickupId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const linkedExpenses = state.expenses.filter((e) => e.pickupId === pickup.id);
 
   return (
@@ -104,6 +107,11 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
         </Card>
       )}
 
+      {customerPickups.length > 1 && (
+        <p className="mb-2 text-sm text-slate-500">
+          Figures and items below are for all {customerPickups.length} pickups in this group of {pickup.reference}'s.
+        </p>
+      )}
       <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
         <Stat label="Total cost" value={money(s.totalCost)} sub={s.linkedCosts > 0 ? `${money(s.stockCost)} stock + ${money(s.linkedCosts)} costs` : 'stock'} />
         <Stat label="Sold so far" value={money(s.salesRevenue + s.otherIncome)} sub={`${s.soldCount} of ${s.itemCount} items`} />
@@ -137,7 +145,7 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
             Items ({s.itemCount}){s.costPerItem !== null && <span className="font-normal text-slate-500"> · {money(s.costPerItem)} cost each</span>}
           </h2>
           {items.length === 0 ? (
-            <Empty>No items logged from this pickup yet.</Empty>
+            <Empty>No items logged for this customer yet.</Empty>
           ) : (
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               {items.map((i) => (

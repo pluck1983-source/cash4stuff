@@ -70,6 +70,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         gender: d.gender ?? '',
         subcategory: subs.includes(d.subcategory ?? '') ? (d.subcategory ?? '') : '',
         photoId: null,
+        photoHash: null,
         location: { area: d.area, rack: d.rack.trim(), box: d.box.trim() },
         quantity,
         listPrice,

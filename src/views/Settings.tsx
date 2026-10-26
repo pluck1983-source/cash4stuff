@@ -80,6 +80,41 @@ export function SettingsView({
         </p>
       </Card>
 
+      <Card title="Repeat customers">
+        <p className="mb-3 text-sm text-slate-500">
+          A customer's pickups are grouped together, and items are logged to the customer. When a new pickup comes at least this long after their last one, with only
+          this many of their items left to sell, you'll be asked whether to start a new group so its costs and profit are counted separately.
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+          <Field label="Days since last pickup">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="1"
+              defaultValue={settings.newGroupAfterDays}
+              onBlur={(e) => {
+                const v = parseNumber(e.target.value);
+                if (v !== null && v >= 0 && v !== settings.newGroupAfterDays) update({ newGroupAfterDays: Math.round(v) });
+              }}
+            />
+          </Field>
+          <Field label="Items left at most">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="1"
+              defaultValue={settings.newGroupItemsLeft}
+              onBlur={(e) => {
+                const v = parseNumber(e.target.value);
+                if (v !== null && v >= 0 && v !== settings.newGroupItemsLeft) update({ newGroupItemsLeft: Math.round(v) });
+              }}
+            />
+          </Field>
+        </div>
+      </Card>
+
       <TabOrderCard />
 
       <Card title="Purchase receipts">

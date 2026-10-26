@@ -1,4 +1,5 @@
 import type { AppState, Item, ItemGender, ItemStatus, Pickup, Settings, WeightRounding } from './types';
+import { groupKeys, sellerKey, sellerPickups } from './sellers';
 
 /** Rounds money to whole pence so totals don't drift with floating point */
 export function pence(value: number): number {
@@ -60,12 +61,27 @@ export interface PickupStats {
 }
 
 export function pickupStats(state: AppState, pickup: Pickup): PickupStats {
-  const items = state.items.filter((i) => i.pickupId === pickup.id);
+  return statsFor(state, pickup, [pickup]);
+}
+
+/**
+ * Figures for everything bought from a customer, across all their pickups -
+ * items are logged against the customer, so a single pickup's share isn't
+ * known. `pickup` is the customer's newest one (shown as the row's pickup).
+ */
+export function customerStats(state: AppState, pickupId: string): PickupStats | null {
+  const pickups = sellerPickups(state.pickups, pickupId).sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
+  return pickups.length ? statsFor(state, pickups[0], pickups) : null;
+}
+
+function statsFor(state: AppState, pickup: Pickup, pickups: Pickup[]): PickupStats {
+  const ids = new Set(pickups.map((p) => p.id));
+  const items = state.items.filter((i) => i.pickupId !== null && ids.has(i.pickupId));
   const sold = items.filter(isSold);
   const held = items.filter(isHeld);
-  const stockCost = pickupStockCost(pickup, state.settings);
-  const linkedCosts = pence(sum(state.expenses.filter((e) => e.pickupId === pickup.id).map((e) => e.amount)));
-  const otherIncome = pence(sum(state.otherIncome.filter((o) => o.pickupId === pickup.id).map((o) => o.amount)));
+  const stockCost = pence(sum(pickups.map((p) => pickupStockCost(p, state.settings))));
+  const linkedCosts = pence(sum(state.expenses.filter((e) => e.pickupId !== null && ids.has(e.pickupId)).map((e) => e.amount)));
+  const otherIncome = pence(sum(state.otherIncome.filter((o) => o.pickupId !== null && ids.has(o.pickupId)).map((o) => o.amount)));
   const salesRevenue = pence(sum(sold.map((i) => i.soldPrice ?? 0)));
   const saleCosts = pence(sum(sold.map((i) => i.saleCosts)));
   const heldListValue = pence(sum(held.map(listValue)));
@@ -225,15 +241,24 @@ export function listValue(item: Item): number {
   return (item.listPrice ?? 0) * item.quantity;
 }
 
+/** Buy cost of each item: what was paid for its customer group, over all its pickups, shared across every piece logged to it */
 export function itemCostMap(state: AppState): Map<string, number> {
+  const groups = groupKeys(state.pickups);
+  const paid = new Map<string, number>();
+  for (const p of state.pickups) {
+    const key = groups.get(p.id) ?? '';
+    paid.set(key, (paid.get(key) ?? 0) + pickupStockCost(p, state.settings));
+  }
+  const keyOf = (item: Item) => (item.pickupId ? (groups.get(item.pickupId) ?? null) : null);
   const counts = new Map<string, number>();
-  for (const item of state.items) if (item.pickupId) counts.set(item.pickupId, (counts.get(item.pickupId) ?? 0) + item.quantity);
-  const result = new Map<string, number>();
-  const pickupsById = new Map(state.pickups.map((p) => [p.id, p]));
   for (const item of state.items) {
-    const pickup = item.pickupId ? pickupsById.get(item.pickupId) : undefined;
-    if (!pickup) continue;
-    result.set(item.id, (pickupStockCost(pickup, state.settings) / (counts.get(pickup.id) ?? 1)) * item.quantity);
+    const key = keyOf(item);
+    if (key) counts.set(key, (counts.get(key) ?? 0) + item.quantity);
+  }
+  const result = new Map<string, number>();
+  for (const item of state.items) {
+    const key = keyOf(item);
+    if (key) result.set(item.id, ((paid.get(key) ?? 0) / (counts.get(key) ?? 1)) * item.quantity);
   }
   return result;
 }
@@ -312,6 +337,7 @@ export interface ItemFilter {
   subcategory: string;
   gender: ItemGender;
   status: ItemStatus | 'held' | '';
+  /** Any one of the customer's pickups - matches items from all of them */
   pickupId: string;
   area: string;
   rack: string;
@@ -337,12 +363,14 @@ export const EMPTY_FILTER: ItemFilter = {
 export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   const text = filter.text.trim().toLowerCase();
   const pickupsById = new Map(state.pickups.map((p) => [p.id, p]));
+  const groups = groupKeys(state.pickups);
+  const customer = filter.pickupId ? (groups.get(filter.pickupId) ?? `missing:${filter.pickupId}`) : '';
   return state.items.filter((i) => {
     if (filter.category && i.category !== filter.category) return false;
     if (filter.category && filter.subcategory && i.subcategory !== filter.subcategory) return false;
     if (filter.gender && i.gender !== filter.gender) return false;
     if (filter.status === 'held' ? !isHeld(i) : filter.status && i.status !== filter.status) return false;
-    if (filter.pickupId && i.pickupId !== filter.pickupId) return false;
+    if (customer && (!i.pickupId || groups.get(i.pickupId) !== customer)) return false;
     if (filter.area && i.location.area !== filter.area) return false;
     if (filter.rack && i.location.rack.toLowerCase() !== filter.rack.trim().toLowerCase()) return false;
     if (filter.box && i.location.box.toLowerCase() !== filter.box.trim().toLowerCase()) return false;
@@ -376,4 +404,29 @@ function sum(values: number[]): number {
   let total = 0;
   for (const v of values) total += v;
   return total;
+}
+
+export interface NewGroupSuggestion {
+  /** The customer's latest pickup before this one */
+  latest: Pickup;
+  days: number;
+  /** Pieces from their current group still in stock or listed */
+  itemsLeft: number;
+}
+
+/**
+ * Whether a new pickup from a repeat customer should be offered a fresh group:
+ * their last pickup was at least newGroupAfterDays ago and no more than
+ * newGroupItemsLeft pieces from their current group are left to sell.
+ */
+export function suggestNewGroup(state: AppState, reference: string, date: string): NewGroupSuggestion | null {
+  const key = sellerKey({ reference });
+  if (!key) return null;
+  const latest = state.pickups.filter((p) => sellerKey(p) === key).sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt))[0];
+  if (!latest) return null;
+  const ids = new Set(sellerPickups(state.pickups, latest.id).map((p) => p.id));
+  const itemsLeft = units(state.items.filter((i) => i.pickupId !== null && ids.has(i.pickupId) && isHeld(i)));
+  const days = Math.round((Date.parse(date) - Date.parse(latest.date)) / 86_400_000);
+  const { newGroupAfterDays, newGroupItemsLeft } = state.settings;
+  return days >= newGroupAfterDays && itemsLeft <= newGroupItemsLeft ? { latest, days, itemsLeft } : null;
 }

@@ -27,6 +27,7 @@ function toDraft(item: Item): ItemDraft {
     listedDate: item.listedDate ?? '',
     notes: item.notes,
     newPhoto: null,
+    photoHash: item.photoHash,
     existingPhotoId: item.photoId,
   };
 }
@@ -69,6 +70,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       subcategory: draft.subcategory,
       gender: draft.gender,
       photoId,
+      photoHash: photoId ? draft.photoHash : null,
       location: { area: draft.location.area, rack: draft.location.rack.trim(), box: draft.location.box.trim() },
       // Cleared SKUs get the next automatic code again.
       sku: draft.sku.trim(),

@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import type { AppState, ItemGender, ItemStatus, StorageLocation } from '../lib/types';
 import { GENDER_LABELS, GENDER_OPTIONS } from '../lib/calc';
-import { parseNumber, shortDate } from '../lib/format';
+import { parseNumber } from '../lib/format';
 import { todayIso } from '../lib/storage';
-import { pickupChoices } from '../lib/sellers';
+import { customerChoices, type CustomerChoice } from '../lib/sellers';
+import { duplicateWarning, itemWithPhoto } from '../lib/duplicates';
 import { Chips, Field, Input, Select } from './ui';
 import { Photo, PhotoPicker } from './Photo';
 import { ZoomableImg } from './Lightbox';
@@ -26,6 +27,8 @@ export interface ItemDraft {
   notes: string;
   /** A newly taken photo, not yet saved */
   newPhoto: Blob | null;
+  /** Fingerprint of the photo file as picked - the new one, or the saved one's */
+  photoHash: string | null;
   /** The photo already saved on the item (null if none, or removed) */
   existingPhotoId: string | null;
 }
@@ -57,9 +60,6 @@ export function ItemEditor({
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
 
-  // One row per seller; resolved sellers drop out unless this item is already theirs.
-  const pickupOptions = useMemo(() => pickupChoices(state.pickups, draft.pickupId), [state.pickups, draft.pickupId]);
-
   // Racks and boxes already used in this area, offered as suggestions.
   const knownRacks = useMemo(
     () => [...new Set(state.items.filter((i) => i.location.area === draft.location.area && i.location.rack).map((i) => i.location.rack))].sort(),
@@ -79,15 +79,9 @@ export function ItemEditor({
   return (
     <div className="space-y-5">
       {showPickup && (
-        <Field label="Pickup">
+        <Field label="Customer">
           <Select value={draft.pickupId ?? ''} onChange={(e) => set({ pickupId: e.target.value || null })}>
-            <option value="">No pickup (bought separately / own stock)</option>
-            {pickupOptions.map((c) => (
-              <option key={c.pickupId} value={c.pickupId}>
-                {c.pickup.reference} · {shortDate(c.pickup.date)}
-                {c.count > 1 ? ` (${c.count} pickups)` : ''}
-              </option>
-            ))}
+            <CustomerOptions state={state} currentId={draft.pickupId} none="No customer (bought separately / own stock)" />
           </Select>
         </Field>
       )}
@@ -102,8 +96,12 @@ export function ItemEditor({
               <Photo id={draft.existingPhotoId} alt={draft.name} className="h-full w-full" />
             ) : null
           }
-          onPicked={(blob) => set({ newPhoto: blob })}
-          onClear={() => set({ newPhoto: null, existingPhotoId: null })}
+          onPicked={(blob, hash) => {
+            const same = itemWithPhoto(state.items, hash, itemId);
+            if (same && !window.confirm(`${duplicateWarning(same)}\n\nUse it for this item as well?`)) return;
+            set({ newPhoto: blob, photoHash: hash });
+          }}
+          onClear={() => set({ newPhoto: null, existingPhotoId: null, photoHash: null })}
         />
       </div>
 
@@ -210,6 +208,27 @@ export function ItemEditor({
         <Input value={draft.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="Size, brand, condition…" />
       </Field>
     </div>
+  );
+}
+
+/**
+ * The customer list for an item's Customer picker - one entry per customer,
+ * whose value is the pickup the item is filed under (see customerChoices).
+ */
+export function CustomerOptions({ state, currentId, none }: { state: AppState; currentId: string | null; none: string }) {
+  const choices = useMemo(() => customerChoices(state.pickups, currentId), [state.pickups, currentId]);
+  const option = (c: CustomerChoice) => (
+    <option key={c.pickupId} value={c.pickupId}>
+      {c.label}
+    </option>
+  );
+  const finished = choices.filter((c) => c.finished);
+  return (
+    <>
+      <option value="">{none}</option>
+      {choices.filter((c) => !c.finished).map(option)}
+      {finished.length > 0 && <optgroup label="All items added">{finished.map(option)}</optgroup>}
+    </>
   );
 }
 

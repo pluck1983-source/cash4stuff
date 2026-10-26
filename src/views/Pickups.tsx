@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { groupBySeller, sellerKey } from '../lib/sellers';
 import type { AppState, Audited, Booking, Handover, PaymentMethod, Pickup } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { pickupStats, roundWeight } from '../lib/calc';
+import { customerStats, pickupStats, roundWeight, suggestNewGroup, type PickupStats } from '../lib/calc';
 import { purchaseCost } from '../lib/audit';
 import { savePhoto } from '../lib/photos';
 import { Photo } from '../components/Photo';
@@ -74,7 +74,12 @@ export function PickupForm({
   const [signature, setSignature] = useState<Blob | null>(null);
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [miles, setMiles] = useState(from?.miles != null ? String(from.miles) : '');
+  const [newGroup, setNewGroup] = useState(initial?.startsNewGroup ?? false);
   const [saving, setSaving] = useState(false);
+  // A new group can only start from a customer's second or later pickup.
+  const typedSeller = sellerKey({ reference });
+  const hasEarlier =
+    typedSeller !== '' && state.pickups.some((p) => p.id !== initial?.id && sellerKey(p) === typedSeller && (!initial || p.date + p.createdAt < initial.date + initial.createdAt));
 
   const weightKg = parseNumber(weight) ?? 0;
   const ratePerKg = parseNumber(rate) ?? settings.costPerKg;
@@ -89,6 +94,16 @@ export function PickupForm({
       onSubmit={async (e) => {
         e.preventDefault();
         const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        let startsNewGroup = hasEarlier && newGroup;
+        const suggestion = !initial && hasEarlier && !newGroup ? suggestNewGroup(state, reference, date) : null;
+        if (suggestion) {
+          const left = suggestion.itemsLeft === 0 ? 'nothing is' : `only ${suggestion.itemsLeft} item${suggestion.itemsLeft === 1 ? ' is' : 's are'}`;
+          startsNewGroup = window.confirm(
+            `${suggestion.latest.reference}'s last pickup was ${suggestion.days} days ago and ${left} left from it.\n\n` +
+              'Start a new group with this pickup, so its costs and profit are counted separately?\n\n' +
+              'OK - new group (later pickups join it)\nCancel - add to the existing group',
+          );
+        }
         setSaving(true);
         let signaturePhotoId = initial?.signaturePhotoId ?? null;
         if (signature) {
@@ -113,6 +128,7 @@ export function PickupForm({
             paperSlipSigned: paperSlip,
             signaturePhotoId,
             notes: notes.trim(),
+            startsNewGroup,
           },
           submitter?.value === 'quick' ? 'quick' : submitter?.value === 'done' ? 'done' : 'photo',
         );
@@ -216,6 +232,15 @@ export function PickupForm({
       <Field label="Notes">
         <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
+      {hasEarlier && (
+        <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+          <input type="checkbox" checked={newGroup} onChange={(e) => setNewGroup(e.target.checked)} className="mt-0.5 h-4 w-4" />
+          <span>
+            Start a new group for this customer
+            <span className="block text-xs text-slate-500">This pickup and later ones get their own costs and profit, apart from the earlier pickups.</span>
+          </span>
+        </label>
+      )}
       {initial ? (
         <div className="flex flex-wrap gap-2">
           <Button type="submit" variant="primary" className="flex-1" value="photo" disabled={saving}>
@@ -278,6 +303,9 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
             seller={fromBooking ?? repeatOf}
             onCancel={() => setAdding(false)}
             onSave={(data, next) => {
+              // The old group's stock is nearly gone, so it drops out of the item picker.
+              const previous = data.startsNewGroup ? pickups.find((p) => sellerKey(p) === sellerKey(data)) : undefined;
+              if (previous) actions.setSellerResolved(previous.id, true);
               const pickup = actions.addPickup(data);
               if (booking) actions.completeBooking(booking.id, pickup.id);
               setAdding(false);
@@ -373,20 +401,15 @@ function PickupCard({ state, pickup: p, inGroup = false, footer }: { state: AppS
             {kg(p.weightKg)} · cost {money(s.totalCost)}
           </div>
         </div>
-        <div className={`text-right text-sm font-semibold tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-          {money(s.realisedProfit)}
-          <div className="text-xs font-normal text-slate-500">{percent(s.roi)} ROI</div>
-        </div>
+        {/* In a group, items and profit belong to the customer and show on the group's heading */}
+        {!inGroup && (
+          <div className={`text-right text-sm font-semibold tabular-nums ${s.realisedProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            {money(s.realisedProfit)}
+            <div className="text-xs font-normal text-slate-500">{percent(s.roi)} ROI</div>
+          </div>
+        )}
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-        <div className="h-full bg-emerald-500" style={{ width: `${s.itemCount ? (s.soldCount / s.itemCount) * 100 : 0}%` }} />
-      </div>
-      <div className="mt-1.5 flex justify-between text-xs text-slate-500">
-        <span>
-          {s.soldCount}/{s.itemCount} sold
-        </span>
-        <span>{money(s.heldListValue)} still listed</span>
-      </div>
+      {!inGroup && <SoldBar stats={s} />}
     </a>
   );
   if (inGroup) return body;
@@ -398,35 +421,55 @@ function PickupCard({ state, pickup: p, inGroup = false, footer }: { state: AppS
   );
 }
 
+function SoldBar({ stats: s }: { stats: PickupStats }) {
+  return (
+    <>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className="h-full bg-emerald-500" style={{ width: `${s.itemCount ? (s.soldCount / s.itemCount) * 100 : 0}%` }} />
+      </div>
+      <div className="mt-1.5 flex justify-between text-xs text-slate-500">
+        <span>
+          {s.soldCount}/{s.itemCount} sold
+        </span>
+        <span>{money(s.heldListValue)} still listed</span>
+      </div>
+    </>
+  );
+}
+
 /** A repeat seller's pickups under one heading, newest first - tap to open */
 function SellerGroup({ state, pickups, footer }: { state: AppState; pickups: Pickup[]; footer?: ReactNode }) {
   const latest = pickups[0];
-  const stats = pickups.map((p) => pickupStats(state, p));
-  const paid = stats.reduce((t, s) => t + s.totalCost, 0);
-  const profit = stats.reduce((t, s) => t + s.realisedProfit, 0);
+  // Items are logged to the customer, so profit is only known for all their pickups together.
+  const stats = customerStats(state, latest.id) ?? pickupStats(state, latest);
+  const paid = stats.totalCost;
+  const profit = stats.realisedProfit;
   const weight = pickups.reduce((t, p) => t + p.weightKg, 0);
   return (
     <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <details className="group">
-        <summary className="flex cursor-pointer list-none items-start justify-between gap-2 p-4 [&::-webkit-details-marker]:hidden">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="truncate font-medium text-slate-900 dark:text-slate-50">{latest.reference}</span>
-              <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800 dark:bg-brand-950 dark:text-brand-200">{pickups.length} pickups</span>
+        <summary className="block cursor-pointer list-none p-4 [&::-webkit-details-marker]:hidden">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="truncate font-medium text-slate-900 dark:text-slate-50">{latest.reference}</span>
+                <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800 dark:bg-brand-950 dark:text-brand-200">{pickups.length} pickups</span>
+              </div>
+              {(latest.sellerAddress || latest.sellerPostcode) && (
+                <div className="truncate text-xs text-slate-500">{[firstAddressLine(latest.sellerAddress), latest.sellerPostcode].filter(Boolean).join(', ')}</div>
+              )}
+              <div className="text-xs text-slate-500">
+                Last {shortDate(latest.date)} · {kg(weight)} · cost {money(paid)}
+              </div>
             </div>
-            {(latest.sellerAddress || latest.sellerPostcode) && (
-              <div className="truncate text-xs text-slate-500">{[firstAddressLine(latest.sellerAddress), latest.sellerPostcode].filter(Boolean).join(', ')}</div>
-            )}
-            <div className="text-xs text-slate-500">
-              Last {shortDate(latest.date)} · {kg(weight)} · cost {money(paid)}
+            <div className="flex shrink-0 items-start gap-2">
+              <div className={`text-right text-sm font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(profit)}</div>
+              <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-180">
+                ▾
+              </span>
             </div>
           </div>
-          <div className="flex shrink-0 items-start gap-2">
-            <div className={`text-right text-sm font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(profit)}</div>
-            <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-180">
-              ▾
-            </span>
-          </div>
+          <SoldBar stats={stats} />
         </summary>
         <div className="space-y-2 border-t border-slate-100 p-2 dark:border-slate-800">
           {pickups.map((p) => (

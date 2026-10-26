@@ -27,6 +27,7 @@ function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
     listedDate: '',
     notes: '',
     newPhoto: null,
+    photoHash: null,
     existingPhotoId: null,
   };
 }
@@ -58,6 +59,7 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
         subcategory: draft.subcategory,
         gender: draft.gender,
         photoId,
+        photoHash: photoId ? draft.photoHash : null,
         location: { area: draft.location.area, rack: draft.location.rack.trim(), box: draft.location.box.trim() },
         sku: draft.sku.trim(),
         quantity: draft.quantity,

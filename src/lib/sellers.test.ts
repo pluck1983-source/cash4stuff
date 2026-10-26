@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupBySeller, latestOpenPickupId, pickupChoices, setResolved } from './sellers';
+import { customerChoices, groupBySeller, latestOpenPickupId, pickupChoices, sellerPickups, setResolved } from './sellers';
 import { testPickup } from './fixtures';
 
 describe('groupBySeller', () => {
@@ -53,5 +53,48 @@ describe('setResolved', () => {
   it('only touches the one pickup when it has an automatic name', () => {
     const auto = [testPickup({ id: 'a', reference: 'Pickup 10 Oct 2026' }), testPickup({ id: 'b', reference: 'Pickup 10 Oct 2026' })];
     expect(setResolved(auto, 'a', true, now).map((x) => x.resolvedAt)).toEqual([now, null]);
+  });
+});
+
+describe('customerChoices', () => {
+  const p = (id: string, reference: string, date: string, resolvedAt: string | null = null) => testPickup({ id, reference, date, resolvedAt });
+
+  it('lists every customer once, open ones first, filed under their newest open pickup', () => {
+    const pickups = [p('a', 'Sarah', '2026-10-01'), p('b', 'Tom', '2026-10-05', '2026-10-06T00:00:00Z'), p('c', 'Sarah', '2026-10-09'), p('d', 'Ann', '2026-10-03')];
+    expect(customerChoices(pickups).map((c) => [c.pickupId, c.finished])).toEqual([
+      ['c', false],
+      ['d', false],
+      ['b', true],
+    ]);
+  });
+
+  it("keeps a finished customer choosable, filed under their newest pickup", () => {
+    const pickups = [p('a', 'Sarah', '2026-10-01', '2026-10-02T00:00:00Z'), p('b', 'Sarah', '2026-10-04', '2026-10-05T00:00:00Z')];
+    expect(customerChoices(pickups).map((c) => c.pickupId)).toEqual(['b']);
+  });
+
+  it("keeps an item's existing pickup selected", () => {
+    const pickups = [p('a', 'Sarah', '2026-10-01'), p('b', 'Sarah', '2026-10-04')];
+    expect(customerChoices(pickups, 'a').map((c) => c.pickupId)).toEqual(['a']);
+  });
+});
+
+describe('new customer groups', () => {
+  const p = (id: string, date: string, startsNewGroup = false) => testPickup({ id, reference: 'Sarah', date, startsNewGroup });
+  const pickups = [p('a', '2026-06-01'), p('b', '2026-06-20'), p('c', '2026-09-01', true), p('d', '2026-09-15'), testPickup({ id: 't', reference: 'Tom', date: '2026-09-02' })];
+
+  it('splits a customer at the pickup that starts a new group; later pickups join it', () => {
+    expect(groupBySeller(pickups).map((g) => g.map((x) => x.id))).toEqual([['d', 'c'], ['t'], ['b', 'a']]);
+    expect(sellerPickups(pickups, 'a').map((x) => x.id)).toEqual(['a', 'b']);
+    expect(sellerPickups(pickups, 'd').map((x) => x.id)).toEqual(['c', 'd']);
+  });
+
+  it('labels each group with when it began once a customer has more than one', () => {
+    expect(customerChoices(pickups).map((c) => c.label)).toEqual(['Sarah (from 1 Sept 2026)', 'Tom', 'Sarah (from 1 Jun 2026)']);
+  });
+
+  it('resolving marks only that group as done', () => {
+    const next = setResolved(pickups, 'a', true, '2026-10-01T00:00:00Z');
+    expect(next.filter((x) => x.resolvedAt).map((x) => x.id)).toEqual(['a', 'b']);
   });
 });

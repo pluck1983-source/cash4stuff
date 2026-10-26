@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { compressImage, onPhotoChanged, photoUrl } from '../lib/photos';
+import { compressImage, onPhotoChanged, photoFingerprint, photoUrl } from '../lib/photos';
 import { ZoomableImg } from './Lightbox';
 
 /**
@@ -58,7 +58,8 @@ export function PhotoPicker({
 }: {
   /** What to show in the photo box - null shows the "take photo" prompt */
   preview: ReactNode | null;
-  onPicked: (blob: Blob) => void;
+  /** The shrunk photo, and the fingerprint of the file as picked (for spotting duplicates) */
+  onPicked: (blob: Blob, hash: string | null) => void;
   onClear: () => void;
 }) {
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -71,7 +72,9 @@ export function PhotoPicker({
     setBusy(true);
     setError(null);
     try {
-      onPicked(await compressImage(file));
+      // Fingerprinting is a nice-to-have; a device that can't do it still gets the photo.
+      const hash = await photoFingerprint(file).catch(() => null);
+      onPicked(await compressImage(file), hash);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not use that photo');
     } finally {

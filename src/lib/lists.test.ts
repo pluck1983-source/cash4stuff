@@ -15,6 +15,7 @@ function item(id: string, category: string, subcategory = ''): Item {
     subcategory,
     gender: '',
     photoId: null,
+    photoHash: null,
     location: { area: 'Garage', rack: '', box: '' },
     quantity: 1,
     listPrice: null,

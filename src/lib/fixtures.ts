@@ -23,6 +23,7 @@ export function testPickup(over: Partial<Pickup> = {}): Pickup {
     paperSlipSigned: false,
     notes: '',
     resolvedAt: null,
+    startsNewGroup: false,
     createdAt: at,
     updatedAt: at,
     voidedAt: null,

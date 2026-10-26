@@ -7,6 +7,13 @@ export interface Settings {
   /** Kilos are rounded to this step (0.5 = half a kilo) before pricing */
   weightStepKg: number;
   weightRounding: WeightRounding;
+  /**
+   * When a repeat customer's new pickup comes at least this many days after
+   * their last one, with no more than newGroupItemsLeft of the old stock still
+   * in hand, the app offers to start a new group for their costs and profit.
+   */
+  newGroupAfterDays: number;
+  newGroupItemsLeft: number;
   /** Item categories offered when adding stock */
   categories: string[];
   /** Optional sub-categories per category (e.g. Tops -> T-shirts, Shirts) */
@@ -109,6 +116,11 @@ export interface Pickup extends Audited {
    * pickups drop out of the pickup picker when adding items; null = still open.
    */
   resolvedAt: string | null;
+  /**
+   * Starts a new group for a repeat customer: this pickup and their later ones
+   * are counted together, apart from the ones before it.
+   */
+  startsNewGroup: boolean;
   /** Used to merge edits made on different devices - the newer edit of a record wins */
   updatedAt: string;
 }
@@ -139,6 +151,12 @@ export interface Item {
   gender: ItemGender;
   /** Key of the compressed photo in the photo store, if one was taken */
   photoId: string | null;
+  /**
+   * SHA-256 of the photo file exactly as it was picked (before shrinking), so
+   * picking the same file again can be spotted. Null for photos added before
+   * this was recorded, and for items without a photo.
+   */
+  photoHash: string | null;
   location: StorageLocation;
   /** How many identical units this record covers (1 for a single piece) */
   quantity: number;

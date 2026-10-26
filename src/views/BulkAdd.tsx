@@ -3,13 +3,14 @@ import type { AppState } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { navigate, routeHref } from '../lib/router';
 import { newId } from '../lib/storage';
-import { compressImage, savePhoto } from '../lib/photos';
-import { latestOpenPickupId, pickupChoices } from '../lib/sellers';
-import { parseNumber, shortDate } from '../lib/format';
+import { compressImage, photoFingerprint, savePhoto } from '../lib/photos';
+import { latestOpenPickupId } from '../lib/sellers';
+import { duplicateWarning, itemWithPhoto } from '../lib/duplicates';
+import { parseNumber } from '../lib/format';
 import { pence } from '../lib/calc';
 import { showToast } from '../lib/toast';
 import { Button, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
-import { QuantityStepper } from '../components/ItemEditor';
+import { CustomerOptions, QuantityStepper } from '../components/ItemEditor';
 import { LAST_KEY, readLast, type LastDefaults } from '../lib/itemDefaults';
 import { ZoomableImg } from '../components/Lightbox';
 
@@ -17,6 +18,8 @@ import { ZoomableImg } from '../components/Lightbox';
 interface Row {
   key: string;
   photo: Blob;
+  /** Fingerprint of the file as picked, null if the device couldn't make one */
+  hash: string | null;
   previewUrl: string;
   name: string;
   pickupId: string | null;
@@ -27,7 +30,7 @@ interface Row {
 }
 
 /**
- * Pick a pile of photos at once - each becomes an item. Set the pickup (for
+ * Pick a pile of photos at once - each becomes an item. Set the customer (for
  * all of them or one by one), give them names if wanted, and save. Prices,
  * sizes and the rest can be filled in on each item afterwards.
  */
@@ -58,8 +61,9 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     const failed: string[] = [];
     for (const [i, file] of files.entries()) {
       try {
+        const hash = await photoFingerprint(file).catch(() => null);
         const photo = await compressImage(file);
-        const row: Row = { key: newId(), photo, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, category: defaultCategory, quantity: 1, price: '' };
+        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, category: defaultCategory, quantity: 1, price: '' };
         setRows((rs) => [...rs, row]);
       } catch {
         failed.push(file.name);
@@ -83,6 +87,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   }
 
   async function saveAll() {
+    if (duplicates.size > 0 && !window.confirm(`${duplicates.size} of these photos ${duplicates.size === 1 ? 'is a copy' : 'are copies'} of one already added.\n\nSave them anyway?`)) return;
     setSaving(true);
     setError(null);
     const location = { area, rack: last?.location.rack ?? '', box: last?.location.box ?? '' };
@@ -99,6 +104,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
           subcategory: '',
           gender: last?.gender ?? '',
           photoId,
+          photoHash: row.hash,
           location,
           quantity: row.quantity,
           listPrice: (() => {
@@ -132,20 +138,15 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     }
   }
 
-  const choices = pickupChoices(state.pickups, defaultPickup);
-  const pickupOptions = (current: string | null) => {
-    const list = current && !choices.some((c) => c.pickupId === current) ? pickupChoices(state.pickups, current) : choices;
-    return [
-      <option key="" value="">
-        No pickup
-      </option>,
-      ...list.map((c) => (
-        <option key={c.pickupId} value={c.pickupId}>
-          {c.pickup.reference} · {shortDate(c.pickup.date)}
-        </option>
-      )),
-    ];
-  };
+  const pickupOptions = (current: string | null) => <CustomerOptions state={state} currentId={current} none="No customer" />;
+  // Photo key -> what it's a copy of: an item already saved, or an earlier photo in this batch.
+  const duplicates = new Map<string, string>();
+  rows.forEach((r, i) => {
+    const saved = itemWithPhoto(state.items, r.hash);
+    const earlier = r.hash ? rows.findIndex((o) => o.hash === r.hash) : i;
+    if (saved) duplicates.set(r.key, duplicateWarning(saved));
+    else if (earlier < i) duplicates.set(r.key, `Same photo as photo ${earlier + 1} above.`);
+  });
   const pieces = rows.reduce((t, r) => t + r.quantity, 0);
   const allSame = rows.length > 0 && rows.every((r) => r.pickupId === rows[0].pickupId) ? (rows[0].pickupId ?? '') : null;
 
@@ -175,7 +176,17 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       ) : (
         <>
           <div className="mb-4 space-y-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <Field label={`Pickup for all ${rows.length}`}>
+            {duplicates.size > 0 && (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                <span>
+                  ⚠ {duplicates.size} duplicate photo{duplicates.size === 1 ? '' : 's'} - marked below
+                </span>
+                <Button onClick={() => [...duplicates.keys()].forEach(remove)} disabled={saving}>
+                  Remove {duplicates.size === 1 ? 'it' : 'them'}
+                </Button>
+              </div>
+            )}
+            <Field label={`Customer for all ${rows.length}`}>
               <Select
                 value={allSame ?? 'mixed'}
                 onChange={(e) => {
@@ -183,7 +194,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                   if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, pickupId: v || null })));
                 }}
               >
-                {allSame === null && <option value="mixed">Different pickups</option>}
+                {allSame === null && <option value="mixed">Different customers</option>}
                 {pickupOptions(allSame || null)}
               </Select>
             </Field>
@@ -200,8 +211,9 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
               <li key={r.key} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
                 <ZoomableImg src={r.previewUrl} alt={`Photo ${i + 1}`} className="h-24 w-24 shrink-0 rounded-md object-cover" />
                 <div className="min-w-0 flex-1 space-y-1.5">
+                  {duplicates.has(r.key) && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">⚠ {duplicates.get(r.key)}</p>}
                   <Input value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Name (optional)" aria-label={`Name for item ${i + 1}`} />
-                  <Select value={r.pickupId ?? ''} onChange={(e) => update(r.key, { pickupId: e.target.value || null })} aria-label={`Pickup for item ${i + 1}`}>
+                  <Select value={r.pickupId ?? ''} onChange={(e) => update(r.key, { pickupId: e.target.value || null })} aria-label={`Customer for item ${i + 1}`}>
                     {pickupOptions(r.pickupId)}
                   </Select>
                   <Select value={r.category} onChange={(e) => update(r.key, { category: e.target.value })} aria-label={`Category for item ${i + 1}`}>

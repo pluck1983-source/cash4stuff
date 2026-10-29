@@ -344,7 +344,12 @@ export interface ItemFilter {
   box: string;
   minPrice: number | null;
   maxPrice: number | null;
+  /** Only items with no list price yet */
+  unpriced: boolean;
 }
+
+/** Category filter value for items whose category is blank or no longer in Settings */
+export const UNCATEGORISED = '__uncategorised__';
 
 export const EMPTY_FILTER: ItemFilter = {
   text: '',
@@ -358,7 +363,13 @@ export const EMPTY_FILTER: ItemFilter = {
   box: '',
   minPrice: null,
   maxPrice: null,
+  unpriced: false,
 };
+
+/** No asking price set yet (bulk photo adds leave it blank) */
+export function isUnpriced(item: Pick<Item, 'listPrice'>): boolean {
+  return !item.listPrice;
+}
 
 export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   const text = filter.text.trim().toLowerCase();
@@ -366,7 +377,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
   const groups = groupKeys(state.pickups);
   const customer = filter.pickupId ? (groups.get(filter.pickupId) ?? `missing:${filter.pickupId}`) : '';
   return state.items.filter((i) => {
-    if (filter.category && i.category !== filter.category) return false;
+    if (filter.category === UNCATEGORISED ? state.settings.categories.includes(i.category) : filter.category && i.category !== filter.category) return false;
     if (filter.category && filter.subcategory && i.subcategory !== filter.subcategory) return false;
     if (filter.gender && i.gender !== filter.gender) return false;
     if (filter.status === 'held' ? !isHeld(i) : filter.status && i.status !== filter.status) return false;
@@ -374,6 +385,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
     if (filter.area && i.location.area !== filter.area) return false;
     if (filter.rack && i.location.rack.toLowerCase() !== filter.rack.trim().toLowerCase()) return false;
     if (filter.box && i.location.box.toLowerCase() !== filter.box.trim().toLowerCase()) return false;
+    if (filter.unpriced && !isUnpriced(i)) return false;
     const price = i.status === 'sold' ? i.soldPrice : i.listPrice;
     if (filter.minPrice !== null && (price ?? 0) < filter.minPrice) return false;
     if (filter.maxPrice !== null && (price ?? 0) > filter.maxPrice) return false;

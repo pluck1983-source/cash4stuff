@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatedPickupCost, customerStats, filterItems, EMPTY_FILTER, itemCostMap, periodFor, pickupStats, roundWeight, suggestNewGroup, totals } from './calc';
+import { calculatedPickupCost, customerStats, filterItems, EMPTY_FILTER, UNCATEGORISED, itemCostMap, periodFor, pickupStats, roundWeight, suggestNewGroup, totals } from './calc';
 import { DEFAULT_SETTINGS, emptyState } from './storage';
 import type { AppState, Item, Pickup } from './types';
 import { purchaseCost } from './audit';
@@ -236,5 +236,15 @@ describe('filterItems', () => {
     expect(ids({ category: 'Dresses' })).toEqual(['b']);
     expect(ids({ rack: 'b' })).toEqual(['a']);
     expect(ids({ minPrice: 12 })).toEqual(['b', 'c']);
+  });
+  it('filters to items with no list price yet', () => {
+    const s = stateWith({ items: [item({ id: 'x', listPrice: null }), item({ id: 'y', listPrice: 0 }), item({ id: 'z', listPrice: 8 })] });
+    expect(filterItems(s, { ...EMPTY_FILTER, unpriced: true }).map((i) => i.id)).toEqual(['x', 'y']);
+  });
+  it('finds items whose category is blank or not in Settings', () => {
+    // 'Hoodies & sweats' is a Tops sub-category, not a category of its own
+    expect(ids({ category: UNCATEGORISED })).toEqual(['a']);
+    const s = stateWith({ items: [item({ id: 'x', category: '' }), item({ id: 'y', category: 'Shoes' })] });
+    expect(filterItems(s, { ...EMPTY_FILTER, category: UNCATEGORISED }).map((i) => i.id)).toEqual(['x']);
   });
 });

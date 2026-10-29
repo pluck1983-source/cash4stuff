@@ -8,6 +8,7 @@ import {
   locationLabel,
   monthlySeries,
   periodFor,
+  customerStats,
   pickupStats,
   salesByCategory,
   totals,
@@ -16,6 +17,7 @@ import {
 } from '../lib/calc';
 import { kg, money, moneyShort, percent, shortDate } from '../lib/format';
 import { routeHref, useIsDesktop } from '../lib/router';
+import { groupBySeller, groupLabel } from '../lib/sellers';
 import { Button, Card, Empty, LinkButton, Select, Stat } from '../components/ui';
 import { Photo } from '../components/Photo';
 
@@ -80,7 +82,7 @@ const WIDGET_LABELS: Record<WidgetKey, string> = {
   kpis: 'Key figures',
   monthTable: 'Monthly figures',
   monthly: 'Income vs costs by month',
-  pickups: 'Pickup profitability',
+  pickups: 'Customer profitability',
   expenses: 'Running costs by type',
   categories: 'Sales by category',
   recentSales: 'Recent sales',
@@ -254,17 +256,16 @@ function BarList({ rows, empty }: { rows: { label: string; value: number; sub?: 
 }
 
 function PickupTable({ state, limit }: { state: AppState; limit?: number }) {
-  const stats = state.pickups
-    .map((p) => pickupStats(state, p))
-    .sort((a, b) => b.pickup.date.localeCompare(a.pickup.date))
-    .slice(0, limit);
+  // One row per customer - items are logged to the customer, not to one of their pickups.
+  const groups = groupBySeller(state.pickups);
+  const stats = groups.slice(0, limit).map((group) => ({ ...(customerStats(state, group[0].id) ?? pickupStats(state, group[0])), label: groupLabel(group, groups) }));
   if (stats.length === 0) return <Empty>No pickups yet.</Empty>;
   return (
     <div className="-mx-4 overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="text-left text-xs uppercase tracking-wide text-slate-500">
           <tr>
-            <th className="px-4 py-1.5">Pickup</th>
+            <th className="px-4 py-1.5">Customer</th>
             <th className="px-2 py-1.5 text-right">Cost</th>
             <th className="px-2 py-1.5 text-right">Sold</th>
             <th className="px-2 py-1.5 text-right">Profit</th>
@@ -276,7 +277,7 @@ function PickupTable({ state, limit }: { state: AppState; limit?: number }) {
             <tr key={s.pickup.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
               <td className="px-4 py-2">
                 <a className="font-medium text-slate-900 hover:underline dark:text-slate-100" href={routeHref({ name: 'pickup', id: s.pickup.id })}>
-                  {s.pickup.reference}
+                  {s.label}
                 </a>
                 <div className="text-xs text-slate-500">
                   {shortDate(s.pickup.date)} · {s.soldCount}/{s.itemCount} sold
@@ -423,7 +424,7 @@ function QuickDashboard({ state }: { state: AppState }) {
         <MonthTable state={state} months={6} compact />
       </Card>
 
-      <Card title="Latest pickups" action={<a className="text-sm text-brand-700 underline dark:text-brand-400" href={routeHref({ name: 'pickups' })}>All</a>}>
+      <Card title="Latest customers" action={<a className="text-sm text-brand-700 underline dark:text-brand-400" href={routeHref({ name: 'pickups' })}>All</a>}>
         <PickupTable state={state} limit={3} />
       </Card>
       <Card title="Needs attention">

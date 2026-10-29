@@ -8,6 +8,8 @@ export const DEFAULT_SETTINGS: Settings = {
   costPerKg: 1,
   weightStepKg: 0.5,
   weightRounding: 'nearest',
+  newGroupAfterDays: 30,
+  newGroupItemsLeft: 5,
   categories: [
     'Tops',
     'Jumpers & knitwear',
@@ -223,6 +225,8 @@ export function normaliseState(raw: unknown): AppState {
     costPerKg: num(s.costPerKg, DEFAULT_SETTINGS.costPerKg),
     weightStepKg: num(s.weightStepKg, DEFAULT_SETTINGS.weightStepKg),
     weightRounding: rounding === 'up' || rounding === 'down' || rounding === 'none' || rounding === 'nearest' ? rounding : 'nearest',
+    newGroupAfterDays: num(s.newGroupAfterDays, DEFAULT_SETTINGS.newGroupAfterDays),
+    newGroupItemsLeft: num(s.newGroupItemsLeft, DEFAULT_SETTINGS.newGroupItemsLeft),
     categories: strList(s.categories, DEFAULT_SETTINGS.categories),
     subcategories: subcategoryMap(s.subcategories, Array.isArray(s.categories) ? {} : DEFAULT_SETTINGS.subcategories),
     storageAreas: strList(s.storageAreas, DEFAULT_SETTINGS.storageAreas),
@@ -260,6 +264,7 @@ export function normaliseState(raw: unknown): AppState {
       paperSlipSigned: p.paperSlipSigned === true,
       notes: str(p.notes),
       resolvedAt: typeof p.resolvedAt === 'string' ? p.resolvedAt : null,
+      startsNewGroup: p.startsNewGroup === true,
       ...audited(p, now),
       updatedAt: str(p.updatedAt, EPOCH),
     };
@@ -280,6 +285,7 @@ export function normaliseState(raw: unknown): AppState {
       // Unisex was dropped as an option; those items load as not set (for anyone).
       gender: i.gender === 'mens' || i.gender === 'womens' || i.gender === 'boys' || i.gender === 'girls' ? i.gender : '',
       photoId: typeof i.photoId === 'string' ? i.photoId : null,
+      photoHash: typeof i.photoId === 'string' && typeof i.photoHash === 'string' ? i.photoHash : null,
       location: { area: str(loc.area), rack: str(loc.rack), box: str(loc.box) },
       quantity: Math.max(1, Math.floor(num(i.quantity) || 1)),
       listPrice,

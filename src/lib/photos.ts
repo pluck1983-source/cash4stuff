@@ -140,3 +140,13 @@ export async function loadPhotoBlob(id: string): Promise<Blob | null> {
   if (local || !remoteFetcher) return local;
   return remoteFetcher(id).catch(() => null);
 }
+
+/**
+ * Fingerprint of a photo file exactly as picked - the same file picked twice
+ * gives the same value, so duplicates can be spotted. Only exact copies match:
+ * a second shot of the same item, or an edited/cropped copy, won't.
+ */
+export async function photoFingerprint(file: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}

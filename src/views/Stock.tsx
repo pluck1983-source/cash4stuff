@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { AppState, Item } from '../lib/types';
 import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, categoryLabel, filterItems, locationLabel, listValue, priceDrop, units, type ItemFilter } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
+import { groupBySeller, groupLabel } from '../lib/sellers';
 import { routeHref, useIsDesktop } from '../lib/router';
 import { downloadText, itemsToCsv, todayIso } from '../lib/storage';
 import { Button, Empty, Input, LinkButton, PageHeader, Select, StatusBadge } from '../components/ui';
@@ -129,15 +130,17 @@ export function StockView({ state }: { state: AppState }) {
               ))}
             </Select>
           )}
-          <Select value={filter.pickupId} onChange={(e) => setFilter({ pickupId: e.target.value })} aria-label="Pickup">
-            <option value="">All pickups</option>
-            {[...state.pickups]
-              .sort((a, b) => b.date.localeCompare(a.date))
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.reference} · {shortDate(p.date)}
+          <Select value={filter.pickupId} onChange={(e) => setFilter({ pickupId: e.target.value })} aria-label="Customer">
+            <option value="">All customers</option>
+            {/* One entry per customer; a filter saved on one of their other pickups still shows as them */}
+            {groupBySeller(state.pickups).map((group, _, groups) => {
+              const value = group.find((p) => p.id === filter.pickupId)?.id ?? group[0].id;
+              return (
+                <option key={value} value={value}>
+                  {groupLabel(group, groups)}
                 </option>
-              ))}
+              );
+            })}
           </Select>
           <Select value={filter.area} onChange={(e) => setFilter({ area: e.target.value, rack: '', box: '' })} aria-label="Storage area">
             <option value="">All areas</option>
@@ -208,7 +211,7 @@ export function StockView({ state }: { state: AppState }) {
               <tr>
                 <th className="w-16 p-2" />
                 <th className="p-2">Item</th>
-                <th className="p-2">Pickup</th>
+                <th className="p-2">Customer</th>
                 <th className="p-2">Location</th>
                 <th className="p-2">Status</th>
                 <th className="p-2 text-right">List</th>

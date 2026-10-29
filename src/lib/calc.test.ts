@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatedPickupCost, filterItems, EMPTY_FILTER, periodFor, pickupStats, roundWeight, totals } from './calc';
+import { calculatedPickupCost, customerStats, filterItems, EMPTY_FILTER, itemCostMap, periodFor, pickupStats, roundWeight, suggestNewGroup, totals } from './calc';
 import { DEFAULT_SETTINGS, emptyState } from './storage';
 import type { AppState, Item, Pickup } from './types';
 import { purchaseCost } from './audit';
@@ -21,6 +21,7 @@ function item(over: Partial<Item> = {}): Item {
     subcategory: '',
     gender: '',
     photoId: null,
+    photoHash: null,
     location: { area: 'Garage', rack: 'A', box: '3' },
     quantity: 1,
     listPrice: 10,
@@ -73,6 +74,61 @@ describe('pickup cost', () => {
   });
 });
 
+describe('by customer', () => {
+  // Sarah has two pickups; her items were all logged to the newer one.
+  const state = stateWith({
+    pickups: [pickup({ id: 'p1', costOverride: 10 }), pickup({ id: 'p2', date: '2026-03-20', costOverride: 20 }), pickup({ id: 'p3', reference: 'Tom', costOverride: 4 })],
+    items: [
+      item({ id: 'a', pickupId: 'p2', status: 'sold', soldPrice: 40, soldDate: '2026-03-21' }),
+      item({ id: 'b', pickupId: 'p2', quantity: 2 }),
+      item({ id: 'c', pickupId: 'p3' }),
+    ],
+  });
+
+  it('adds up all of the customer\'s pickups, whichever one the items sit on', () => {
+    const s = customerStats(state, 'p1')!;
+    expect(s.pickup.id).toBe('p2');
+    expect(s.stockCost).toBe(30);
+    expect(s.itemCount).toBe(3);
+    expect(s.realisedProfit).toBe(10);
+    expect(s.costPerItem).toBe(10);
+  });
+
+  it("shares what was paid to a customer across all their items", () => {
+    const cost = itemCostMap(state);
+    expect(cost.get('a')).toBe(10);
+    expect(cost.get('b')).toBe(20);
+    expect(cost.get('c')).toBe(4);
+  });
+
+  it('filters stock by customer, from any of their pickups', () => {
+    expect(filterItems(state, { ...EMPTY_FILTER, pickupId: 'p1' }).map((i) => i.id)).toEqual(['a', 'b']);
+    expect(filterItems(state, { ...EMPTY_FILTER, pickupId: 'p3' }).map((i) => i.id)).toEqual(['c']);
+  });
+});
+
+describe('suggestNewGroup', () => {
+  const state = stateWith({
+    pickups: [pickup({ id: 'p1', date: '2026-03-01' }), pickup({ id: 'p2', date: '2026-03-10' })],
+    items: [item({ pickupId: 'p2', quantity: 3 }), item({ pickupId: 'p1', status: 'sold', soldPrice: 5, soldDate: '2026-03-12' })],
+  });
+
+  it('offers a new group when the last pickup was long enough ago and few items are left', () => {
+    expect(suggestNewGroup(state, 'sarah', '2026-04-09')).toMatchObject({ days: 30, itemsLeft: 3, latest: { id: 'p2' } });
+  });
+
+  it('not too soon, not with plenty left, and not for a new customer', () => {
+    expect(suggestNewGroup(state, 'Sarah', '2026-04-08')).toBeNull();
+    expect(suggestNewGroup({ ...state, settings: { ...state.settings, newGroupItemsLeft: 2 } }, 'Sarah', '2026-05-01')).toBeNull();
+    expect(suggestNewGroup(state, 'Tom', '2026-05-01')).toBeNull();
+  });
+
+  it('only counts what is left in the current group', () => {
+    const split = stateWith({ ...state, pickups: [...state.pickups, pickup({ id: 'p3', date: '2026-05-01', startsNewGroup: true })] });
+    expect(suggestNewGroup(split, 'Sarah', '2026-06-15')).toMatchObject({ itemsLeft: 0, latest: { id: 'p3' } });
+  });
+});
+
 describe('pickupStats', () => {
   it('works out realised and projected profit for a pickup', () => {
     const p = pickup({ costOverride: 15 });
@@ -103,7 +159,7 @@ describe('pickupStats', () => {
 
 describe('totals', () => {
   const state = stateWith({
-    pickups: [pickup(), pickup({ id: 'p2', date: '2025-12-01', weightKg: 4 })],
+    pickups: [pickup(), pickup({ id: 'p2', reference: 'Tom', date: '2025-12-01', weightKg: 4 })],
     items: [
       item({ status: 'sold', soldPrice: 30, soldDate: '2026-03-15', saleCosts: 3 }),
       item({ listPrice: 20 }),

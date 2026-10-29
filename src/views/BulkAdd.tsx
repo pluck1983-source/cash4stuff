@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AppState } from '../lib/types';
+import type { AppState, ItemGender } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { navigate, routeHref } from '../lib/router';
 import { newId } from '../lib/storage';
@@ -7,7 +7,7 @@ import { compressImage, photoFingerprint, savePhoto } from '../lib/photos';
 import { latestOpenPickupId } from '../lib/sellers';
 import { duplicateWarning, itemWithPhoto } from '../lib/duplicates';
 import { parseNumber } from '../lib/format';
-import { pence } from '../lib/calc';
+import { GENDER_LABELS, GENDER_OPTIONS, pence } from '../lib/calc';
 import { showToast } from '../lib/toast';
 import { Button, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
 import { CustomerOptions, QuantityStepper } from '../components/ItemEditor';
@@ -23,6 +23,8 @@ interface Row {
   previewUrl: string;
   name: string;
   pickupId: string | null;
+  /** Women's, Men's etc - '' when not set */
+  gender: ItemGender;
   category: string;
   quantity: number;
   /** Asking price each, as typed ('' = not priced yet) */
@@ -53,6 +55,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
 
   const categories = state.settings.categories;
   const defaultCategory = last?.category && categories.includes(last.category) ? last.category : (categories[0] ?? 'Other');
+  // New photos follow whatever was last picked for the batch, then the last item added.
+  const defaultGender = rows.length > 0 ? rows[rows.length - 1].gender : (last?.gender ?? '');
 
   async function addPhotos(files: File[]) {
     if (files.length === 0) return;
@@ -63,7 +67,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       try {
         const hash = await photoFingerprint(file).catch(() => null);
         const photo = await compressImage(file);
-        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, category: defaultCategory, quantity: 1, price: '' };
+        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, gender: defaultGender, category: defaultCategory, quantity: 1, price: '' };
         setRows((rs) => [...rs, row]);
       } catch {
         failed.push(file.name);
@@ -102,7 +106,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
           keywords: '',
           category: row.category,
           subcategory: '',
-          gender: last?.gender ?? '',
+          gender: row.gender,
           photoId,
           photoHash: row.hash,
           location,
@@ -123,7 +127,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
         remove(row.key);
       }
       try {
-        localStorage.setItem(LAST_KEY, JSON.stringify({ ...last, category: rows[rows.length - 1]?.category ?? defaultCategory, location } satisfies LastDefaults));
+        localStorage.setItem(LAST_KEY, JSON.stringify({ ...last, category: rows[rows.length - 1]?.category ?? defaultCategory, gender: rows[rows.length - 1]?.gender ?? '', location } satisfies LastDefaults));
       } catch {
         // Remembering is a convenience only.
       }
@@ -148,6 +152,17 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     else if (earlier < i) duplicates.set(r.key, `Same photo as photo ${earlier + 1} above.`);
   });
   const pieces = rows.reduce((t, r) => t + r.quantity, 0);
+  const genderOptions = (
+    <>
+      <option value="">Women's/men's?</option>
+      {GENDER_OPTIONS.map((g) => (
+        <option key={g} value={g}>
+          {GENDER_LABELS[g]}
+        </option>
+      ))}
+    </>
+  );
+  const allSameGender = rows.length > 0 && rows.every((r) => r.gender === rows[0].gender) ? rows[0].gender : null;
   const allSame = rows.length > 0 && rows.every((r) => r.pickupId === rows[0].pickupId) ? (rows[0].pickupId ?? '') : null;
 
   return (
@@ -198,6 +213,18 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 {pickupOptions(allSame || null)}
               </Select>
             </Field>
+            <Field label={`Women's / men's for all ${rows.length}`}>
+              <Select
+                value={allSameGender ?? 'mixed'}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, gender: v as ItemGender })));
+                }}
+              >
+                {allSameGender === null && <option value="mixed">Different</option>}
+                {genderOptions}
+              </Select>
+            </Field>
             {state.settings.storageAreas.length > 0 && (
               <div>
                 <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Stored at</span>
@@ -215,6 +242,9 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                   <Input value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Name (optional)" aria-label={`Name for item ${i + 1}`} />
                   <Select value={r.pickupId ?? ''} onChange={(e) => update(r.key, { pickupId: e.target.value || null })} aria-label={`Customer for item ${i + 1}`}>
                     {pickupOptions(r.pickupId)}
+                  </Select>
+                  <Select value={r.gender} onChange={(e) => update(r.key, { gender: e.target.value as ItemGender })} aria-label={`Women's or men's for item ${i + 1}`}>
+                    {genderOptions}
                   </Select>
                   <Select value={r.category} onChange={(e) => update(r.key, { category: e.target.value })} aria-label={`Category for item ${i + 1}`}>
                     {categories.map((c) => (

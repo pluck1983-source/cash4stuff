@@ -14,11 +14,13 @@ import { Photo } from '../components/Photo';
 import { PurchaseReceipt } from '../components/PurchaseReceipt';
 import { paymentLabel } from '../lib/audit';
 import { mapsUrl } from '../lib/diary';
+import { MergeCustomers } from '../components/MergeCustomers';
 
 export function PickupDetailView({ state, books, actions, id }: { state: AppState; books: AppState; actions: AppActions; id: string }) {
   const pickup = books.pickups.find((p) => p.id === id);
   const [editing, setEditing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [quickEntry, setQuickEntry] = useState(() => sessionStorage.getItem(OPEN_QUICK_ENTRY_KEY) === id);
   useEffect(() => sessionStorage.removeItem(OPEN_QUICK_ENTRY_KEY), []);
   const [costCategory, setCostCategory] = useState('Fuel');
@@ -87,6 +89,12 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
           + New pickup from this seller
         </Button>
       )}
+      {pickup.voidedAt === null && !merging && (
+        <Button className="mb-4 w-full sm:ml-2 sm:w-auto" onClick={() => setMerging(true)}>
+          Merge old pickups into this customer
+        </Button>
+      )}
+      {merging && <MergeCustomers state={state} actions={actions} pickup={pickup} onClose={() => setMerging(false)} />}
       {pickup.voidedAt !== null && (
         <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
           This purchase is <strong>voided</strong> and left out of every total{pickup.voidReason && `: ${pickup.voidReason}`}. Restore it if that was a mistake.

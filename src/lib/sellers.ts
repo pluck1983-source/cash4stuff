@@ -131,3 +131,44 @@ export function customerChoices<T extends Groupable & Pick<Pickup, 'resolvedAt'>
   }
   return [...choices.filter((c) => !c.finished), ...choices.filter((c) => c.finished)];
 }
+
+type Mergeable = Groupable & Pick<Pickup, 'sellerAddress' | 'sellerPostcode' | 'sellerContact' | 'startsNewGroup'>;
+
+/** The seller details a merge copies across - everything else on a pickup stays as it was */
+export const SELLER_DETAILS = ['reference', 'sellerAddress', 'sellerPostcode', 'sellerContact'] as const;
+
+/**
+ * Files other customers' pickups under this one's customer, e.g. early pickups
+ * entered before the seller's full name was known. The merged pickups take
+ * this pickup's name, address, postcode and contact; anything this pickup is
+ * missing is filled in from the newest merged pickup that has it. Picking one
+ * pickup of a customer brings their whole group. Dates, weights, payments and
+ * receipt numbers aren't touched, and items stay on their pickups - they move
+ * with them because the pickups now count as the same customer.
+ */
+export function mergeCustomers<T extends Mergeable>(pickups: T[], targetId: string, fromIds: string[]): T[] {
+  const target = pickups.find((p) => p.id === targetId);
+  if (!target) return pickups;
+  const targetGroup = new Set(sellerPickups(pickups, targetId).map((p) => p.id));
+  const merged = new Set(fromIds.flatMap((id) => sellerPickups(pickups, id).map((p) => p.id)).filter((id) => !targetGroup.has(id)));
+  if (merged.size === 0) return pickups;
+
+  const details = { reference: target.reference, sellerAddress: target.sellerAddress, sellerPostcode: target.sellerPostcode, sellerContact: target.sellerContact };
+  for (const p of pickups.filter((x) => merged.has(x.id)).sort(newest)) {
+    for (const f of SELLER_DETAILS) if (!details[f].trim() && p[f].trim() && (f !== 'reference' || sellerKey(p))) details[f] = p[f];
+  }
+
+  // The combined group begins at its oldest pickup. It's only marked as a new
+  // group when this customer's group was one already (it followed an earlier group).
+  const all = new Set([...targetGroup, ...merged]);
+  const oldest = pickups.filter((p) => all.has(p.id)).sort(newest).at(-1)!;
+  const startsNew = pickups.some((p) => targetGroup.has(p.id) && p.startsNewGroup);
+
+  return pickups.map((p) => {
+    if (!all.has(p.id)) return p;
+    const next = { ...p, startsNewGroup: startsNew && p.id === oldest.id };
+    if (merged.has(p.id) || p.id === targetId) Object.assign(next, details);
+    const changed = SELLER_DETAILS.some((f) => next[f] !== p[f]) || next.startsNewGroup !== p.startsNewGroup;
+    return changed ? next : p;
+  });
+}

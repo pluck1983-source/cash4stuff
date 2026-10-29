@@ -5,7 +5,7 @@ import { auditDefaults, nextReceiptNumber, purchaseCost, withHistory } from './a
 import { postDueRecurring } from './recurring';
 import { applyListEdit, type ListEdit } from './lists';
 import { splitSale, type Sale } from './quantity';
-import { setResolved } from './sellers';
+import { mergeCustomers, setResolved } from './sellers';
 import { loadState, newId, saveState, todayIso } from './storage';
 
 type NewPickup = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber' | 'resolvedAt'>;
@@ -128,6 +128,23 @@ export function useAppState() {
       setSellerResolved(pickupId: string, resolved: boolean) {
         const now = stamp();
         setState((s) => ({ ...s, pickups: setResolved(s.pickups, pickupId, resolved, now) }));
+      },
+      /**
+       * Files other customers' pickups under this pickup's customer, taking its
+       * seller details. Old details stay in each pickup's edit history.
+       */
+      mergeCustomers(targetId: string, fromIds: string[]) {
+        const now = stamp();
+        setState((s) => {
+          const live = s.pickups.filter((p) => p.voidedAt === null);
+          const merged = new Map(mergeCustomers(live, targetId, fromIds).map((p) => [p.id, p]));
+          const pickups = s.pickups.map((before) => {
+            const after = merged.get(before.id);
+            if (!after || after === before) return before;
+            return { ...withHistory(before, after, now, [...PICKUP_FIELDS, 'startsNewGroup']), updatedAt: now };
+          });
+          return { ...s, pickups };
+        });
       },
       /** A purchase is never deleted - voiding keeps it in the books, crossed out, with the reason */
       voidPickup(id: string, reason: string) {

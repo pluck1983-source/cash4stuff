@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppState, Item } from '../lib/types';
-import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, categoryLabel, filterItems, locationLabel, listValue, priceDrop, units, type ItemFilter } from '../lib/calc';
+import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, UNCATEGORISED, categoryLabel, filterItems, locationLabel, listValue, priceDrop, units, type ItemFilter } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { groupBySeller, groupLabel } from '../lib/sellers';
 import { routeHref, useIsDesktop } from '../lib/router';
@@ -56,6 +56,9 @@ export function StockView({ state }: { state: AppState }) {
     };
     return list.sort(sorters[sort]);
   }, [state, filter, sort]);
+  // How many the Unpriced button would show, given the other filters
+  const unpricedCount = useMemo(() => filterItems(state, { ...filter, unpriced: true }).length, [state, filter]);
+  const uncategorisedCount = useMemo(() => state.items.filter((i) => !state.settings.categories.includes(i.category)).length, [state.items, state.settings.categories]);
 
   const heldValue = items.reduce((t, i) => t + (i.status === 'sold' ? 0 : listValue(i)), 0);
   const unitCount = units(items);
@@ -69,7 +72,7 @@ export function StockView({ state }: { state: AppState }) {
         .filter(Boolean),
     ),
   ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const activeFilters = Object.entries(filter).filter(([k, v]) => k !== 'text' && v !== '' && v !== null && !(k === 'status' && v === 'held')).length;
+  const activeFilters = Object.entries(filter).filter(([k, v]) => k !== 'text' && k !== 'category' && k !== 'unpriced' && v !== '' && v !== null && !(k === 'status' && v === 'held')).length;
   const filtersOpen = isDesktop || showFilters;
 
   return (
@@ -98,6 +101,28 @@ export function StockView({ state }: { state: AppState }) {
         )}
       </div>
 
+      <div className="mb-3 flex gap-2">
+        <Select value={filter.category} onChange={(e) => setFilter({ category: e.target.value, subcategory: '' })} aria-label="Category" className="min-w-0 flex-1 md:max-w-xs">
+          <option value="">All categories</option>
+          {state.settings.categories.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+          {(uncategorisedCount > 0 || filter.category === UNCATEGORISED) && <option value={UNCATEGORISED}>Uncategorised ({uncategorisedCount})</option>}
+        </Select>
+        <button
+          type="button"
+          aria-pressed={filter.unpriced}
+          onClick={() => setFilter({ unpriced: !filter.unpriced })}
+          className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-medium ${
+            filter.unpriced
+              ? 'border-brand-600 bg-brand-600 text-white'
+              : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+          }`}
+        >
+          Unpriced ({unpricedCount})
+        </button>
+      </div>
+
       {filtersOpen && (
         <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4 2xl:grid-cols-8">
           <Select value={filter.status} onChange={(e) => setFilter({ status: e.target.value as ItemFilter['status'] })} aria-label="Status">
@@ -114,12 +139,6 @@ export function StockView({ state }: { state: AppState }) {
               <option key={g} value={g}>
                 {GENDER_LABELS[g]}
               </option>
-            ))}
-          </Select>
-          <Select value={filter.category} onChange={(e) => setFilter({ category: e.target.value, subcategory: '' })} aria-label="Category">
-            <option value="">All categories</option>
-            {state.settings.categories.map((c) => (
-              <option key={c}>{c}</option>
             ))}
           </Select>
           {(state.settings.subcategories[filter.category]?.length ?? 0) > 0 && (
@@ -186,7 +205,7 @@ export function StockView({ state }: { state: AppState }) {
           {soldValue > 0 && <> · {money(soldValue)} sold</>}
         </span>
         <span className="flex items-center gap-2">
-          {(activeFilters > 0 || filter.text) && (
+          {(activeFilters > 0 || filter.text || filter.category || filter.unpriced) && (
             <button type="button" className="underline" onClick={() => setFilter({ ...EMPTY_FILTER, status: 'held' })}>
               Clear filters
             </button>

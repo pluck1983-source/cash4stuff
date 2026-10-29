@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { customerChoices, groupBySeller, latestOpenPickupId, pickupChoices, sellerPickups, setResolved } from './sellers';
+import { customerChoices, groupBySeller, latestOpenPickupId, mergeCustomers, pickupChoices, sellerPickups, setResolved } from './sellers';
 import { testPickup } from './fixtures';
 
 describe('groupBySeller', () => {
@@ -96,5 +96,57 @@ describe('new customer groups', () => {
   it('resolving marks only that group as done', () => {
     const next = setResolved(pickups, 'a', true, '2026-10-01T00:00:00Z');
     expect(next.filter((x) => x.resolvedAt).map((x) => x.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('mergeCustomers', () => {
+  const p = (id: string, reference: string, date: string, over: Partial<Parameters<typeof testPickup>[0]> = {}) => testPickup({ id, reference, date, ...over });
+
+  it('files old pickups under the newer customer, with the newer details', () => {
+    const pickups = [
+      p('a', 'Sarah', '2026-09-01', { sellerAddress: '1 Old Road' }),
+      p('b', 'Pickup 5 Sep 2026', '2026-09-05', { sellerContact: '07700 900000' }),
+      p('c', 'Sarah Jones', '2026-10-20', { sellerAddress: '2 New Street', sellerPostcode: 'AB1 2CD' }),
+      p('d', 'Tom', '2026-10-01'),
+    ];
+    const out = mergeCustomers(pickups, 'c', ['a', 'b']);
+    expect(sellerPickups(out, 'c').map((x) => x.id).sort()).toEqual(['a', 'b', 'c']);
+    const a = out.find((x) => x.id === 'a')!;
+    expect([a.reference, a.sellerAddress, a.sellerPostcode]).toEqual(['Sarah Jones', '2 New Street', 'AB1 2CD']);
+    // The newer pickup had no contact, so the old one's is kept - on all of them
+    expect(out.find((x) => x.id === 'c')!.sellerContact).toBe('07700 900000');
+    expect(a.sellerContact).toBe('07700 900000');
+    // Money and dates aren't touched; other customers aren't either
+    expect(a.date).toBe('2026-09-01');
+    expect(out.find((x) => x.id === 'd')).toBe(pickups[3]);
+  });
+
+  it("doesn't take an automatic name to fill a blank one", () => {
+    const out = mergeCustomers([p('a', 'Pickup 5 Sep 2026', '2026-09-05'), p('b', '', '2026-10-01')], 'b', ['a']);
+    expect(out.map((x) => x.reference)).toEqual(['', '']);
+  });
+
+  it('brings the whole of a picked customer group', () => {
+    const pickups = [p('a', 'Sue', '2026-08-01'), p('b', 'sue', '2026-09-01'), p('c', 'Susan Smith', '2026-10-01')];
+    const out = mergeCustomers(pickups, 'c', ['b']);
+    expect(sellerPickups(out, 'c')).toHaveLength(3);
+  });
+
+  it("keeps a repeat customer's earlier group apart when merging into their later one", () => {
+    const pickups = [
+      p('a', 'Sarah Jones', '2026-01-01'),
+      p('b', 'Sarah', '2026-09-01'),
+      p('c', 'Sarah Jones', '2026-10-01', { startsNewGroup: true }),
+    ];
+    const out = mergeCustomers(pickups, 'c', ['b']);
+    expect(sellerPickups(out, 'c').map((x) => x.id).sort()).toEqual(['b', 'c']);
+    expect(sellerPickups(out, 'a').map((x) => x.id)).toEqual(['a']);
+    expect(out.find((x) => x.id === 'b')!.startsNewGroup).toBe(true);
+    expect(out.find((x) => x.id === 'c')!.startsNewGroup).toBe(false);
+  });
+
+  it('does nothing when there is nothing to merge', () => {
+    const pickups = [p('a', 'Sarah', '2026-09-01'), p('b', 'sarah', '2026-10-01')];
+    expect(mergeCustomers(pickups, 'b', ['a'])).toBe(pickups);
   });
 });

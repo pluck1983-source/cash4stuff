@@ -3,6 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import type { ItemGender, Settings } from './types';
 import { GENDER_LABELS, GENDER_OPTIONS } from './calc';
+import { compressImage } from './photos';
 
 /** What the photo AI thinks a photo is. Blank fields mean it couldn't tell. */
 export interface Suggestion {
@@ -73,6 +74,66 @@ export function cleanSuggestion(answer: z.infer<typeof Answer>, settings: Pick<S
   const subcategory = (settings.subcategories[category] ?? []).find((s) => s.toLowerCase() === answer.subcategory.trim().toLowerCase()) ?? '';
   const gender = (GENDER_OPTIONS as string[]).includes(answer.gender) ? (answer.gender as ItemGender) : '';
   return { name: answer.name.trim().slice(0, 60), gender, category, subcategory, sure: answer.sure && category !== '' };
+}
+
+/** A photo to compare against, with how the warning should name it */
+export interface Candidate {
+  label: string;
+  photo: Blob;
+}
+
+const SameItem = z.object({
+  /** Number of the photo showing the same physical item, 0 if none */
+  match: z.number(),
+  sure: z.boolean(),
+});
+
+// Small copies are enough to compare and keep the cost down (about 350 tokens each).
+const THUMB_EDGE = 512;
+const PER_REQUEST = 30;
+
+/**
+ * Looks for a photo of the same physical item (re-shot, different angle or
+ * light) among the candidates. Returns the first match, or null.
+ */
+export async function findSameItem(photo: Blob, candidates: Candidate[], apiKey: string): Promise<{ candidate: Candidate; sure: boolean } | null> {
+  if (candidates.length === 0) return null;
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  const target = await blobToBase64(await compressImage(photo, 768));
+  for (let start = 0; start < candidates.length; start += PER_REQUEST) {
+    const chunk = candidates.slice(start, start + PER_REQUEST);
+    const images: Anthropic.ContentBlockParam[] = [];
+    for (const [i, c] of chunk.entries()) {
+      const thumb = await compressImage(c.photo, THUMB_EDGE).catch(() => null);
+      if (!thumb) continue;
+      images.push({ type: 'text', text: `Photo ${i + 1}:` }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: await blobToBase64(thumb) } });
+    }
+    const response = await client.messages.parse({
+      model: MODEL,
+      max_tokens: 2000,
+      output_config: { effort: 'low', format: zodOutputFormat(SameItem) },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'New photo:' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: target } },
+            ...images,
+            {
+              type: 'text',
+              text: `A second-hand clothes business is adding the new photo to its stock list. Does any numbered photo show the very same physical item - the same garment photographed again, perhaps from another angle, in other light or folded differently? Look at specific details: print, logo, stains, wear, labels, buttons. Merely the same style, colour or brand is NOT a match.
+
+match: the number of the photo showing the same item, or 0 if none does. sure: true only if the details make it clear it's the same one.`,
+            },
+          ],
+        },
+      ],
+    });
+    const answer = response.parsed_output;
+    const index = answer ? Math.round(answer.match) - 1 : -1;
+    if (answer && index >= 0 && index < chunk.length) return { candidate: chunk[index], sure: answer.sure };
+  }
+  return null;
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {

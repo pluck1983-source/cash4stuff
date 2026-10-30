@@ -143,7 +143,7 @@ export function SettingsView({
         </p>
       </Card>
 
-      <PhotoAiSettings />
+      <PhotoAiSettings settings={settings} actions={actions} />
 
       <Card title="Backup">
         <p className="mb-3 text-sm text-slate-500">

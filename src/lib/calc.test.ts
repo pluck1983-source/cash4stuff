@@ -238,7 +238,16 @@ describe('filterItems', () => {
     expect(ids({ minPrice: 12 })).toEqual(['b', 'c']);
   });
   it('filters to items with no list price yet', () => {
-    const s = stateWith({ items: [item({ id: 'x', listPrice: null }), item({ id: 'y', listPrice: 0 }), item({ id: 'z', listPrice: 8 })] });
+    const s = stateWith({
+      items: [
+        item({ id: 'x', listPrice: null }),
+        item({ id: 'y', listPrice: 0 }),
+        item({ id: 'z', listPrice: 8 }),
+        // Sold or written off without ever being priced - nothing left to price
+        item({ id: 's', listPrice: null, status: 'sold', soldPrice: 5 }),
+        item({ id: 'w', listPrice: null, status: 'written_off' }),
+      ],
+    });
     expect(filterItems(s, { ...EMPTY_FILTER, unpriced: true }).map((i) => i.id)).toEqual(['x', 'y']);
   });
   it('finds items whose category is blank or not in Settings', () => {

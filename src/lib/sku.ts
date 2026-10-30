@@ -25,6 +25,17 @@ export function makeSku(category: string, n: number): string {
   return `${skuPrefix(category)}-${String(n).padStart(4, '0')}`;
 }
 
+/**
+ * An item saved without a category gets a stand-in ITM-0042 code. Once it's
+ * given a category the code takes that category's letters, keeping its number.
+ * Real codes never change.
+ */
+export function skuForNewCategory(sku: string, previousCategory: string, category: string): string {
+  const match = /^ITM-(\d+)$/.exec(sku);
+  if (!match || previousCategory.trim() || !category.trim()) return sku;
+  return makeSku(category, Number(match[1]));
+}
+
 /** Gives SKUs to items that don't have one yet, oldest first. Returns the same array when nothing changes. */
 export function assignMissingSkus<T extends Pick<Item, 'sku' | 'category' | 'createdAt' | 'updatedAt'>>(items: T[], now: string): T[] {
   if (items.every((i) => i.sku)) return items;

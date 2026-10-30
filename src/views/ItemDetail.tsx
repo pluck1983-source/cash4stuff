@@ -79,6 +79,8 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       status: isSold ? 'sold' : draft.status,
       listedDate: isSold ? item.listedDate : draft.status === 'listed' ? draft.listedDate || null : null,
       notes: draft.notes.trim(),
+      // Saving the details means someone has looked at the AI's guess.
+      needsCheck: false,
     };
   }
 
@@ -151,6 +153,20 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
         {buyCost !== undefined && <span>· cost {money(buyCost)}</span>}
         <span>· added {shortDate(item.createdAt)}</span>
       </p>
+
+      {item.needsCheck && item.category && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <span>⚠ The photo AI wasn't sure about this one. Check the category below.</span>
+          <Button
+            onClick={() => {
+              actions.updateItem({ ...item, needsCheck: false });
+              showToast('✓ Marked as checked');
+            }}
+          >
+            Looks right
+          </Button>
+        </div>
+      )}
 
       {!isSold && item.status !== 'written_off' && (
         <div className="mb-4 grid grid-cols-2 gap-2">

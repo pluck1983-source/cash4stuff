@@ -8,6 +8,7 @@ import { routeHref } from '../lib/router';
 import { NAV, NavIcon, TAB_SECTIONS } from '../components/Nav';
 import { saveNavOrder, useNavOrder } from '../lib/navOrder';
 import { Button, Card, Field, Input, PageHeader, Select, TextArea } from '../components/ui';
+import { PhotoAiSettings } from '../components/PhotoAiSettings';
 
 export function SettingsView({
   state,
@@ -141,6 +142,8 @@ export function SettingsView({
           .
         </p>
       </Card>
+
+      <PhotoAiSettings />
 
       <Card title="Backup">
         <p className="mb-3 text-sm text-slate-500">

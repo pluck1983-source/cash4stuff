@@ -286,6 +286,7 @@ export function normaliseState(raw: unknown): AppState {
       gender: i.gender === 'mens' || i.gender === 'womens' || i.gender === 'boys' || i.gender === 'girls' ? i.gender : '',
       photoId: typeof i.photoId === 'string' ? i.photoId : null,
       photoHash: typeof i.photoId === 'string' && typeof i.photoHash === 'string' ? i.photoHash : null,
+      ...(i.needsCheck === true ? { needsCheck: true } : {}),
       location: { area: str(loc.area), rack: str(loc.rack), box: str(loc.box) },
       quantity: Math.max(1, Math.floor(num(i.quantity) || 1)),
       listPrice,

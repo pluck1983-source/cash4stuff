@@ -346,6 +346,8 @@ export interface ItemFilter {
   maxPrice: number | null;
   /** Only items with no list price yet */
   unpriced: boolean;
+  /** Only items flagged to check: the photo AI was unsure, or there's no category */
+  needsCheck: boolean;
 }
 
 /** Category filter value for items whose category is blank or no longer in Settings */
@@ -364,11 +366,17 @@ export const EMPTY_FILTER: ItemFilter = {
   minPrice: null,
   maxPrice: null,
   unpriced: false,
+  needsCheck: false,
 };
 
 /** No asking price set yet (bulk photo adds leave it blank) */
 export function isUnpriced(item: Pick<Item, 'listPrice'>): boolean {
   return !item.listPrice;
+}
+
+/** The photo AI was unsure of its guess, or the item has no category yet */
+export function needsCheck(item: Pick<Item, 'needsCheck' | 'category'>): boolean {
+  return item.needsCheck === true || !item.category;
 }
 
 export function filterItems(state: AppState, filter: ItemFilter): Item[] {
@@ -386,6 +394,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
     if (filter.rack && i.location.rack.toLowerCase() !== filter.rack.trim().toLowerCase()) return false;
     if (filter.box && i.location.box.toLowerCase() !== filter.box.trim().toLowerCase()) return false;
     if (filter.unpriced && !isUnpriced(i)) return false;
+    if (filter.needsCheck && !needsCheck(i)) return false;
     const price = i.status === 'sold' ? i.soldPrice : i.listPrice;
     if (filter.minPrice !== null && (price ?? 0) < filter.minPrice) return false;
     if (filter.maxPrice !== null && (price ?? 0) > filter.maxPrice) return false;

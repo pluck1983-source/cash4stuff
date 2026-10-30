@@ -13,6 +13,7 @@ import { Button, Chips, Empty, Field, Input, PageHeader, Select } from '../compo
 import { CustomerOptions, QuantityStepper } from '../components/ItemEditor';
 import { LAST_KEY, readLast, type LastDefaults } from '../lib/itemDefaults';
 import { ZoomableImg } from '../components/Lightbox';
+import { hasAiKey, unlockAiKey } from '../lib/aiKey';
 
 /** One photo waiting to become an item */
 interface Row {
@@ -26,9 +27,14 @@ interface Row {
   /** Women's, Men's etc - '' when not set */
   gender: ItemGender;
   category: string;
+  subcategory: string;
   quantity: number;
   /** Asking price each, as typed ('' = not priced yet) */
   price: string;
+  /** Photo AI progress for this photo */
+  ai: 'none' | 'busy' | 'done' | 'failed';
+  /** The AI was unsure - saved with a "Needs check" flag unless someone picks the category */
+  needsCheck: boolean;
 }
 
 /**
@@ -44,6 +50,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [aiRunning, setAiRunning] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
 
   // Previews are freed when the page closes.
@@ -71,7 +79,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       try {
         const hash = await photoFingerprint(file).catch(() => null);
         const photo = await compressImage(file);
-        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, gender: defaultGender, category: defaultCategory, quantity: 1, price: '' };
+        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, gender: defaultGender, category: defaultCategory, subcategory: '', quantity: 1, price: '', ai: 'none', needsCheck: false };
         setRows((rs) => [...rs, row]);
       } catch {
         failed.push(file.name);
@@ -84,6 +92,60 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
 
   function update(key: string, patch: Partial<Row>) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+
+  /** Asks the photo AI about each photo that has no category yet, a few at a time */
+  async function suggestAll() {
+    setAiError(null);
+    let apiKey: string | null;
+    try {
+      apiKey = await unlockAiKey();
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'Face ID failed');
+      return;
+    }
+    if (!apiKey) return;
+    const key = apiKey;
+    // Loaded only when used, so the AI code doesn't slow down opening the app.
+    const { suggestFromPhoto } = await import('../lib/autoCategorise');
+    const todo = rowsRef.current.filter((r) => !r.category && r.ai !== 'busy');
+    setAiRunning(true);
+    setRows((rs) => rs.map((r) => (todo.some((t) => t.key === r.key) ? { ...r, ai: 'busy' } : r)));
+    let stop: string | null = null;
+    const queue = [...todo];
+    const worker = async () => {
+      for (let row = queue.shift(); row && !stop; row = queue.shift()) {
+        try {
+          const s = await suggestFromPhoto(row.photo, state.settings, key);
+          // Only fills what's still blank, so anything picked by hand meanwhile stays.
+          setRows((rs) =>
+            rs.map((r) =>
+              r.key !== row.key
+                ? r
+                : r.category
+                  ? { ...r, ai: 'done' }
+                  : {
+                      ...r,
+                      ai: 'done',
+                      name: r.name || s.name,
+                      gender: r.gender || s.gender,
+                      category: s.category,
+                      subcategory: s.subcategory,
+                      needsCheck: !s.sure,
+                    },
+            ),
+          );
+        } catch (e) {
+          setRows((rs) => rs.map((r) => (r.key === row.key ? { ...r, ai: 'failed' } : r)));
+          // A bad key or empty balance fails every photo, so stop at the first.
+          if (e instanceof Error && 'status' in e && (e.status === 401 || e.status === 403 || e.status === 400)) stop = e.message;
+        }
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    setRows((rs) => rs.map((r) => (r.ai === 'busy' ? { ...r, ai: 'none' } : r)));
+    setAiRunning(false);
+    if (stop) setAiError(`The photo AI stopped: ${stop}. Check the key and credit in Settings.`);
   }
 
   function remove(key: string) {
@@ -109,10 +171,11 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
           name: row.name.trim(),
           keywords: '',
           category: row.category,
-          subcategory: '',
+          subcategory: row.category ? row.subcategory : '',
           gender: row.gender,
           photoId,
           photoHash: row.hash,
+          ...(row.needsCheck && row.category ? { needsCheck: true } : {}),
           location,
           quantity: row.quantity,
           listPrice: (() => {
@@ -168,6 +231,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     </>
   );
   const uncategorised = rows.filter((r) => !r.category).length;
+  const unsure = rows.filter((r) => r.category && r.needsCheck).length;
+  const aiReady = hasAiKey();
   const categoryOptions = (
     <>
       <option value="">Category? (needs check)</option>
@@ -217,6 +282,18 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 </Button>
               </div>
             )}
+            {aiReady ? (
+              uncategorised > 0 && (
+                <Button variant="primary" className="w-full" disabled={aiRunning || saving} onClick={() => void suggestAll()}>
+                  {aiRunning ? '✨ Looking at photos…' : `✨ Suggest categories for ${uncategorised}`}
+                </Button>
+              )
+            ) : (
+              <p className="text-xs text-slate-500">
+                Want categories filled in for you? <a className="underline" href={routeHref({ name: 'settings' })}>Set up the photo AI in Settings</a>.
+              </p>
+            )}
+            {aiError && <p className="text-sm text-red-600">{aiError}</p>}
             <Field label={`Customer for all ${rows.length}`}>
               <Select
                 value={allSame ?? 'mixed'}
@@ -246,7 +323,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 value={allSameCategory ?? 'mixed'}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, category: v })));
+                  if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, category: v, subcategory: '', needsCheck: false })));
                 }}
               >
                 {allSameCategory === null && <option value="mixed">Different</option>}
@@ -267,6 +344,14 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 <ZoomableImg src={r.previewUrl} alt={`Photo ${i + 1}`} className="h-24 w-24 shrink-0 rounded-md object-cover" />
                 <div className="min-w-0 flex-1 space-y-1.5">
                   {duplicates.has(r.key) && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">⚠ {duplicates.get(r.key)}</p>}
+                  {r.ai === 'busy' && <p className="text-xs text-slate-500">✨ Looking at this photo…</p>}
+                  {r.ai === 'failed' && <p className="text-xs text-red-600">The photo AI couldn't read this one</p>}
+                  {r.ai === 'done' && r.category && (
+                    <p className={`text-xs font-medium ${r.needsCheck ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500'}`}>
+                      {r.needsCheck ? '⚠ AI not sure - check' : '✨ Suggested'}
+                      {r.subcategory && ` · ${r.subcategory}`}
+                    </p>
+                  )}
                   <Input value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Name (optional)" aria-label={`Name for item ${i + 1}`} />
                   <Select value={r.pickupId ?? ''} onChange={(e) => update(r.key, { pickupId: e.target.value || null })} aria-label={`Customer for item ${i + 1}`}>
                     {pickupOptions(r.pickupId)}
@@ -276,9 +361,9 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                   </Select>
                   <Select
                     value={r.category}
-                    onChange={(e) => update(r.key, { category: e.target.value })}
+                    onChange={(e) => update(r.key, { category: e.target.value, subcategory: '', needsCheck: false })}
                     aria-label={`Category for item ${i + 1}`}
-                    className={r.category ? undefined : '!border-amber-400 !bg-amber-50 dark:!border-amber-700 dark:!bg-amber-950'}
+                    className={r.category && !r.needsCheck ? undefined : '!border-amber-400 !bg-amber-50 dark:!border-amber-700 dark:!bg-amber-950'}
                   >
                     {categoryOptions}
                   </Select>
@@ -310,9 +395,10 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
             ))}
           </ul>
 
-          {uncategorised > 0 && (
+          {(uncategorised > 0 || unsure > 0) && (
             <p className="mt-4 text-sm text-amber-800 dark:text-amber-300">
-              ⚠ {uncategorised} without a category - they'll be saved as Uncategorised and flagged in Stock to check later.
+              ⚠ {[uncategorised > 0 && `${uncategorised} without a category`, unsure > 0 && `${unsure} the AI wasn't sure about`].filter(Boolean).join(' and ')} - they'll be
+              flagged "Needs check" in Stock to look at later.
             </p>
           )}
           <div className="vv-bottom sticky bottom-[var(--tabs-h)] z-10 -mx-4 mt-6 border-t border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 dark:border-slate-800 dark:bg-slate-950/95">

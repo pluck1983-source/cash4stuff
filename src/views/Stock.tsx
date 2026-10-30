@@ -58,6 +58,7 @@ export function StockView({ state }: { state: AppState }) {
   }, [state, filter, sort]);
   // How many the Unpriced button would show, given the other filters
   const unpricedCount = useMemo(() => filterItems(state, { ...filter, unpriced: true }).length, [state, filter]);
+  const needsCheckCount = useMemo(() => filterItems(state, { ...filter, needsCheck: true }).length, [state, filter]);
   const uncategorisedCount = useMemo(() => state.items.filter((i) => !state.settings.categories.includes(i.category)).length, [state.items, state.settings.categories]);
 
   const heldValue = items.reduce((t, i) => t + (i.status === 'sold' ? 0 : listValue(i)), 0);
@@ -72,7 +73,7 @@ export function StockView({ state }: { state: AppState }) {
         .filter(Boolean),
     ),
   ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const activeFilters = Object.entries(filter).filter(([k, v]) => k !== 'text' && k !== 'category' && k !== 'unpriced' && v !== '' && v !== null && !(k === 'status' && v === 'held')).length;
+  const activeFilters = Object.entries(filter).filter(([k, v]) => k !== 'text' && k !== 'category' && k !== 'unpriced' && k !== 'needsCheck' && v !== '' && v !== null && !(k === 'status' && v === 'held')).length;
   const filtersOpen = isDesktop || showFilters;
 
   return (
@@ -121,6 +122,20 @@ export function StockView({ state }: { state: AppState }) {
         >
           Unpriced ({unpricedCount})
         </button>
+        {(needsCheckCount > 0 || filter.needsCheck) && (
+          <button
+            type="button"
+            aria-pressed={filter.needsCheck}
+            onClick={() => setFilter({ needsCheck: !filter.needsCheck })}
+            className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-medium ${
+              filter.needsCheck
+                ? 'border-amber-600 bg-amber-600 text-white'
+                : 'border-amber-300 bg-amber-50 text-amber-900 hover:border-amber-400 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200'
+            }`}
+          >
+            Check ({needsCheckCount})
+          </button>
+        )}
       </div>
 
       {filtersOpen && (
@@ -205,7 +220,7 @@ export function StockView({ state }: { state: AppState }) {
           {soldValue > 0 && <> · {money(soldValue)} sold</>}
         </span>
         <span className="flex items-center gap-2">
-          {(activeFilters > 0 || filter.text || filter.category || filter.unpriced) && (
+          {(activeFilters > 0 || filter.text || filter.category || filter.unpriced || filter.needsCheck) && (
             <button type="button" className="underline" onClick={() => setFilter({ ...EMPTY_FILTER, status: 'held' })}>
               Clear filters
             </button>

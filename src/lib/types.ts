@@ -157,6 +157,8 @@ export interface Item {
    * this was recorded, and for items without a photo.
    */
   photoHash: string | null;
+  /** Set when the photo AI wasn't sure of its guess; cleared once someone saves or confirms the item */
+  needsCheck?: boolean;
   location: StorageLocation;
   /** How many identical units this record covers (1 for a single piece) */
   quantity: number;

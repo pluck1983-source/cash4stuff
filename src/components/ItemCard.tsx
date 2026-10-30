@@ -1,5 +1,5 @@
 import type { Item, Pickup } from '../lib/types';
-import { categoryLabel, locationLabel } from '../lib/calc';
+import { categoryLabel, locationLabel, needsCheck } from '../lib/calc';
 import { money, shortDate } from '../lib/format';
 import { routeHref } from '../lib/router';
 import { Photo } from './Photo';
@@ -30,7 +30,11 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
         </div>
         <div className="truncate text-xs text-slate-500">
           {categoryLabel(item)}
-          {!item.category && <span className="font-medium text-amber-700 dark:text-amber-400">{item.gender ? ' · ' : ''}⚠ Needs category</span>}
+          {needsCheck(item) && (
+            <span className="font-medium text-amber-700 dark:text-amber-400">
+              {item.gender || item.category ? ' · ' : ''}⚠ {item.category ? 'Needs check' : 'Needs category'}
+            </span>
+          )}
           {pickup && ` · ${pickup.reference}`}
         </div>
         <div className="mt-1 flex items-center justify-between gap-2">

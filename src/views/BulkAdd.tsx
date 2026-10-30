@@ -13,7 +13,7 @@ import { Button, Chips, Empty, Field, Input, PageHeader, Select } from '../compo
 import { CustomerOptions, QuantityStepper } from '../components/ItemEditor';
 import { LAST_KEY, readLast, type LastDefaults } from '../lib/itemDefaults';
 import { ZoomableImg } from '../components/Lightbox';
-import { unlockAiKey } from '../lib/aiKey';
+import { aiKeyUnlocked, unlockAiKey } from '../lib/aiKey';
 import type { Candidate } from '../lib/autoCategorise';
 
 /** One photo waiting to become an item */
@@ -61,6 +61,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [aiRunning, setAiRunning] = useState(false);
+  const aiRunningRef = useRef(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
 
@@ -85,11 +86,13 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     setError(null);
     setProgress({ done: 0, total: files.length });
     const failed: string[] = [];
+    const added: Row[] = [];
     for (const [i, file] of files.entries()) {
       try {
         const hash = await photoFingerprint(file).catch(() => null);
         const photo = await compressImage(file);
         const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, gender: defaultGender, category: defaultCategory, subcategory: '', quantity: 1, price: '', ai: 'none', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null };
+        added.push(row);
         setRows((rs) => [...rs, row]);
       } catch {
         failed.push(file.name);
@@ -97,6 +100,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       setProgress({ done: i + 1, total: files.length });
     }
     setProgress(null);
+    // Once Face ID has unlocked the key this session, new photos are checked straight away.
+    if ((state.settings.aiKeys?.length ?? 0) > 0 && aiKeyUnlocked() && !aiRunningRef.current) void runAi(added);
     if (failed.length) setError(`Couldn't use ${failed.length} photo${failed.length === 1 ? '' : 's'}: ${failed.join(', ')}`);
   }
 
@@ -109,7 +114,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
    * Photo AI: suggests what each uncategorised photo is, then looks for the same
    * item already in stock (or earlier in this batch) under a different photo.
    */
-  async function runAi() {
+  async function runAi(justAdded: Row[] = []) {
     setAiError(null);
     let apiKey: string | null;
     try {
@@ -122,10 +127,12 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     const key = apiKey;
     // Loaded only when used, so the AI code doesn't slow down opening the app.
     const { suggestFromPhoto, findSameItem } = await import('../lib/autoCategorise');
-    const batch = rowsRef.current;
+    // Photos added a moment ago may not have reached rowsRef yet.
+    const batch = [...rowsRef.current.filter((r) => !justAdded.some((a) => a.key === r.key)), ...justAdded];
     // What each row will look like once suggestions are in, so the duplicate check can use them straight away.
     const latest = new Map(batch.map((r) => [r.key, r]));
     setAiRunning(true);
+    aiRunningRef.current = true;
     let stop: string | null = null;
     const fail = (row: Row, e: unknown) => {
       setRows((rs) => rs.map((r) => (r.key === row.key ? { ...r, ai: 'failed' } : r)));
@@ -199,6 +206,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
 
     setRows((rs) => rs.map((r) => (r.ai === 'busy' ? { ...r, ai: 'none' } : r)));
     setAiRunning(false);
+    aiRunningRef.current = false;
     if (stop) setAiError(`The photo AI stopped: ${stop}. Check the key and credit in Settings.`);
   }
 
@@ -230,6 +238,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
           photoId,
           photoHash: row.hash,
           ...(row.needsCheck && row.category ? { needsCheck: true } : {}),
+          // So "Scan stock photos" doesn't look at it again.
+          ...(row.suggested || row.dupChecked ? { aiScannedAt: new Date().toISOString() } : {}),
           location,
           quantity: row.quantity,
           listPrice: (() => {

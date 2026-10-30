@@ -12,6 +12,7 @@ import { PickupsView } from './views/Pickups';
 import { PickupDetailView } from './views/PickupDetail';
 import { AddItemView } from './views/AddItem';
 import { BulkAddView } from './views/BulkAdd';
+import { PhotoScanView } from './views/PhotoScan';
 import { StockView } from './views/Stock';
 import { ItemDetailView } from './views/ItemDetail';
 import { MoneyView } from './views/Money';
@@ -36,6 +37,8 @@ function sectionOf(route: Route): Section {
       return 'add';
     case 'item':
       return 'stock';
+    case 'photo-scan':
+      return 'settings';
     default:
       return route.name;
   }
@@ -106,6 +109,9 @@ export default function App() {
       break;
     case 'admin':
       view = <AdminView state={state} actions={actions} />;
+      break;
+    case 'photo-scan':
+      view = <PhotoScanView state={state} actions={actions} />;
       break;
     case 'settings':
       view = (

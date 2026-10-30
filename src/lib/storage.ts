@@ -1,6 +1,6 @@
 import { GENDER_LABELS } from './calc';
 import { purchaseCost } from './audit';
-import type { AppState, Audited, Booking, EditRecord, Employment, Expense, RecurringCost, Item, OtherIncome, PaymentMethod, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
+import type { AiSuggestion, AppState, Audited, Booking, EditRecord, Employment, Expense, RecurringCost, Item, OtherIncome, PaymentMethod, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
 
 const STORAGE_KEY = 'cash4stuff-state-v1';
 
@@ -209,6 +209,17 @@ function audited(r: Record<string, unknown>, createdFallback: string): Audited {
   };
 }
 
+function aiSuggestion(s: Record<string, unknown>): AiSuggestion {
+  const g = s.gender;
+  return {
+    name: str(s.name),
+    gender: g === 'mens' || g === 'womens' || g === 'boys' || g === 'girls' ? g : '',
+    category: str(s.category),
+    subcategory: str(s.subcategory),
+    sure: s.sure === true,
+  };
+}
+
 function records(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null) : [];
 }
@@ -291,6 +302,8 @@ export function normaliseState(raw: unknown): AppState {
       photoId: typeof i.photoId === 'string' ? i.photoId : null,
       photoHash: typeof i.photoId === 'string' && typeof i.photoHash === 'string' ? i.photoHash : null,
       ...(i.needsCheck === true ? { needsCheck: true } : {}),
+      ...(typeof i.aiScannedAt === 'string' ? { aiScannedAt: i.aiScannedAt } : {}),
+      ...(typeof i.aiSuggestion === 'object' && i.aiSuggestion !== null ? { aiSuggestion: aiSuggestion(i.aiSuggestion as Record<string, unknown>) } : {}),
       location: { area: str(loc.area), rack: str(loc.rack), box: str(loc.box) },
       quantity: Math.max(1, Math.floor(num(i.quantity) || 1)),
       listPrice,

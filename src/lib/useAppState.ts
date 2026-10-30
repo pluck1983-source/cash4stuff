@@ -200,6 +200,16 @@ export function useAppState() {
         const id = newId();
         setState((s) => ({ ...s, items: splitSale(s.items, item, sale, sold, now, id) }));
       },
+      /** Changes a few fields on the latest copy of an item, so background work can't undo other edits */
+      patchItem(id: string, patch: Partial<Item>) {
+        setState((s) => {
+          const previous = s.items.find((i) => i.id === id);
+          if (!previous) return s;
+          const next = { ...previous, ...patch, updatedAt: stamp() };
+          next.sku = skuForNewCategory(next.sku, previous.category, next.category);
+          return { ...s, items: s.items.map((i) => (i.id === id ? next : i)) };
+        });
+      },
       /** Sold items can't be deleted - their sale is part of the books */
       deleteItem(item: Item) {
         if (item.status === 'sold') return;

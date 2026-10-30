@@ -1,19 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
-import type { ItemGender, Settings } from './types';
+import type { AiSuggestion, ItemGender, Settings } from './types';
 import { GENDER_LABELS, GENDER_OPTIONS } from './calc';
 import { compressImage } from './photos';
 
-/** What the photo AI thinks a photo is. Blank fields mean it couldn't tell. */
-export interface Suggestion {
-  name: string;
-  gender: ItemGender;
-  category: string;
-  subcategory: string;
-  /** False when it's guessing - the item gets flagged to check */
-  sure: boolean;
-}
+export type Suggestion = AiSuggestion;
 
 // Cheapest model that reads photos well; about 0.03p a photo.
 const MODEL = 'claude-haiku-5-5';

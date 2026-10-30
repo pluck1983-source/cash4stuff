@@ -21,6 +21,11 @@ const asBuffer = (secret: BufferSource): ArrayBuffer => (secret instanceof Array
 const NOT_SUPPORTED = "This device can't lock the key with Face ID (it needs iOS 18 or newer, or a recent Chrome), so it wasn't saved.";
 const NOT_YOURS = 'A key saved from another Apple ID needs your own key adding in Settings > Photo AI.';
 
+/** Unlocked already since the app opened, so the AI can run without asking for Face ID */
+export function aiKeyUnlocked(): boolean {
+  return unlocked !== null;
+}
+
 export function forgetUnlockedKey() {
   unlocked = null;
 }

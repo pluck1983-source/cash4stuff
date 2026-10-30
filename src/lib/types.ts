@@ -39,6 +39,16 @@ export interface Settings {
   aiKeys?: LockedAiKey[];
 }
 
+/** What the photo AI thinks a photo is. Blank fields mean it couldn't tell. */
+export interface AiSuggestion {
+  name: string;
+  gender: ItemGender;
+  category: string;
+  subcategory: string;
+  /** False when it's guessing - the item gets flagged to check */
+  sure: boolean;
+}
+
 export interface LockedAiKey {
   /** base64 */
   credentialId: string;
@@ -173,6 +183,10 @@ export interface Item {
   photoHash: string | null;
   /** Set when the photo AI wasn't sure of its guess; cleared once someone saves or confirms the item */
   needsCheck?: boolean;
+  /** When the photo AI last looked at this item's photo */
+  aiScannedAt?: string;
+  /** What the photo AI thinks this is, where it differs - waiting for someone to accept or dismiss it */
+  aiSuggestion?: AiSuggestion;
   location: StorageLocation;
   /** How many identical units this record covers (1 for a single piece) */
   quantity: number;

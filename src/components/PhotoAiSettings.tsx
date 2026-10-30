@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Settings } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { forgetUnlockedKey, lockAiKey } from '../lib/aiKey';
+import { routeHref } from '../lib/router';
 import { Button, Card, Field, Input } from './ui';
 
 /**
@@ -67,6 +68,11 @@ export function PhotoAiSettings({ settings, actions }: { settings: Settings; act
         </div>
       )}
       {message && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{message}</p>}
+      {keys.length > 0 && (
+        <a className="mt-3 block text-sm font-medium text-brand-700 underline dark:text-brand-300" href={routeHref({ name: 'photo-scan' })}>
+          ✨ Scan existing stock photos
+        </a>
+      )}
     </Card>
   );
 }

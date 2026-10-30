@@ -17,7 +17,8 @@ export type Route =
   | { name: 'money' }
   | { name: 'finance' }
   | { name: 'admin' }
-  | { name: 'settings' };
+  | { name: 'settings' }
+  | { name: 'photo-scan' };
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
@@ -40,6 +41,8 @@ export function parseRoute(hash: string): Route {
       return { name: 'settings' };
     case 'admin':
       return { name: 'admin' };
+    case 'photo-scan':
+      return { name: 'photo-scan' };
     default:
       return { name: 'dashboard' };
   }
@@ -71,6 +74,8 @@ export function routeHref(route: Route): string {
       return '#/settings';
     case 'admin':
       return '#/admin';
+    case 'photo-scan':
+      return '#/photo-scan';
   }
 }
 

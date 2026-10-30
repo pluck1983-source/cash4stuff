@@ -3,17 +3,18 @@ import type { AppState, ItemGender } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { navigate, routeHref } from '../lib/router';
 import { newId } from '../lib/storage';
-import { compressImage, photoFingerprint, savePhoto } from '../lib/photos';
+import { compressImage, loadPhotoBlob, photoFingerprint, savePhoto } from '../lib/photos';
 import { latestOpenPickupId } from '../lib/sellers';
-import { duplicateWarning, itemWithPhoto } from '../lib/duplicates';
+import { describeItem, duplicateWarning, itemWithPhoto } from '../lib/duplicates';
 import { parseNumber } from '../lib/format';
-import { GENDER_LABELS, GENDER_OPTIONS, pence } from '../lib/calc';
+import { GENDER_LABELS, GENDER_OPTIONS, isHeld, pence } from '../lib/calc';
 import { showToast } from '../lib/toast';
 import { Button, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
 import { CustomerOptions, QuantityStepper } from '../components/ItemEditor';
 import { LAST_KEY, readLast, type LastDefaults } from '../lib/itemDefaults';
 import { ZoomableImg } from '../components/Lightbox';
-import { hasAiKey, unlockAiKey } from '../lib/aiKey';
+import { unlockAiKey } from '../lib/aiKey';
+import type { Candidate } from '../lib/autoCategorise';
 
 /** One photo waiting to become an item */
 interface Row {
@@ -35,7 +36,16 @@ interface Row {
   ai: 'none' | 'busy' | 'done' | 'failed';
   /** The AI was unsure - saved with a "Needs check" flag unless someone picks the category */
   needsCheck: boolean;
+  /** Category came from the photo AI */
+  suggested: boolean;
+  /** Compared with stock by the photo AI */
+  dupChecked: boolean;
+  /** What the photo AI thinks this is a second photo of */
+  aiDuplicate: string | null;
 }
+
+/** Newest held items of the same category to compare each photo with */
+const MAX_STOCK_COMPARED = 60;
 
 /**
  * Pick a pile of photos at once - each becomes an item. Set the customer (for
@@ -79,7 +89,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       try {
         const hash = await photoFingerprint(file).catch(() => null);
         const photo = await compressImage(file);
-        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, gender: defaultGender, category: defaultCategory, subcategory: '', quantity: 1, price: '', ai: 'none', needsCheck: false };
+        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, gender: defaultGender, category: defaultCategory, subcategory: '', quantity: 1, price: '', ai: 'none', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null };
         setRows((rs) => [...rs, row]);
       } catch {
         failed.push(file.name);
@@ -95,11 +105,15 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   }
 
   /** Asks the photo AI about each photo that has no category yet, a few at a time */
-  async function suggestAll() {
+  /**
+   * Photo AI: suggests what each uncategorised photo is, then looks for the same
+   * item already in stock (or earlier in this batch) under a different photo.
+   */
+  async function runAi() {
     setAiError(null);
     let apiKey: string | null;
     try {
-      apiKey = await unlockAiKey();
+      apiKey = await unlockAiKey(state.settings.aiKeys ?? []);
     } catch (e) {
       setAiError(e instanceof Error ? e.message : 'Face ID failed');
       return;
@@ -107,42 +121,82 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     if (!apiKey) return;
     const key = apiKey;
     // Loaded only when used, so the AI code doesn't slow down opening the app.
-    const { suggestFromPhoto } = await import('../lib/autoCategorise');
-    const todo = rowsRef.current.filter((r) => !r.category && r.ai !== 'busy');
+    const { suggestFromPhoto, findSameItem } = await import('../lib/autoCategorise');
+    const batch = rowsRef.current;
+    // What each row will look like once suggestions are in, so the duplicate check can use them straight away.
+    const latest = new Map(batch.map((r) => [r.key, r]));
     setAiRunning(true);
-    setRows((rs) => rs.map((r) => (todo.some((t) => t.key === r.key) ? { ...r, ai: 'busy' } : r)));
     let stop: string | null = null;
-    const queue = [...todo];
-    const worker = async () => {
-      for (let row = queue.shift(); row && !stop; row = queue.shift()) {
-        try {
-          const s = await suggestFromPhoto(row.photo, state.settings, key);
-          // Only fills what's still blank, so anything picked by hand meanwhile stays.
-          setRows((rs) =>
-            rs.map((r) =>
-              r.key !== row.key
-                ? r
-                : r.category
-                  ? { ...r, ai: 'done' }
-                  : {
-                      ...r,
-                      ai: 'done',
-                      name: r.name || s.name,
-                      gender: r.gender || s.gender,
-                      category: s.category,
-                      subcategory: s.subcategory,
-                      needsCheck: !s.sure,
-                    },
-            ),
-          );
-        } catch (e) {
-          setRows((rs) => rs.map((r) => (r.key === row.key ? { ...r, ai: 'failed' } : r)));
-          // A bad key or empty balance fails every photo, so stop at the first.
-          if (e instanceof Error && 'status' in e && (e.status === 401 || e.status === 403 || e.status === 400)) stop = e.message;
-        }
-      }
+    const fail = (row: Row, e: unknown) => {
+      setRows((rs) => rs.map((r) => (r.key === row.key ? { ...r, ai: 'failed' } : r)));
+      // A bad key or empty balance fails every photo, so stop at the first.
+      if (e instanceof Error && 'status' in e && (e.status === 401 || e.status === 403 || e.status === 400)) stop = e.message;
     };
-    await Promise.all([worker(), worker(), worker()]);
+    const inParallel = async (todo: Row[], work: (row: Row) => Promise<void>) => {
+      const queue = [...todo];
+      const worker = async () => {
+        for (let row = queue.shift(); row && !stop; row = queue.shift()) await work(row);
+      };
+      await Promise.all([worker(), worker(), worker()]);
+    };
+
+    const toSuggest = batch.filter((r) => !r.category);
+    setRows((rs) => rs.map((r) => (toSuggest.some((t) => t.key === r.key) ? { ...r, ai: 'busy' } : r)));
+    await inParallel(toSuggest, async (row) => {
+      try {
+        const s = await suggestFromPhoto(row.photo, state.settings, key);
+        latest.set(row.key, { ...row, category: s.category, gender: row.gender || s.gender });
+        // Only fills what's still blank, so anything picked by hand meanwhile stays.
+        setRows((rs) =>
+          rs.map((r) =>
+            r.key !== row.key
+              ? r
+              : r.category
+                ? { ...r, ai: 'done' }
+                : { ...r, ai: 'done', name: r.name || s.name, gender: r.gender || s.gender, category: s.category, subcategory: s.subcategory, needsCheck: !s.sure, suggested: s.category !== '' },
+          ),
+        );
+      } catch (e) {
+        fail(row, e);
+      }
+    });
+
+    const photos = new Map<string, Blob | null>();
+    const stockPhoto = async (id: string) => {
+      if (!photos.has(id)) photos.set(id, await loadPhotoBlob(id));
+      return photos.get(id) ?? null;
+    };
+    const ordered = batch.map((r) => latest.get(r.key) ?? r);
+    const toCheck = ordered.filter((r) => r.category && !r.dupChecked);
+    setRows((rs) => rs.map((r) => (toCheck.some((t) => t.key === r.key) ? { ...r, ai: 'busy' } : r)));
+    await inParallel(toCheck, async (row) => {
+      const sameKind = (category: string, gender: ItemGender) => category === row.category && (!gender || !row.gender || gender === row.gender);
+      const candidates: Candidate[] = [];
+      ordered.slice(0, ordered.indexOf(row)).forEach((o, i) => {
+        if (sameKind(o.category, o.gender)) candidates.push({ label: `photo ${i + 1} above`, photo: o.photo });
+      });
+      const stock = state.items
+        .filter((i) => isHeld(i) && i.photoId && sameKind(i.category, i.gender))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, MAX_STOCK_COMPARED);
+      for (const item of stock) {
+        const photo = await stockPhoto(item.photoId!);
+        if (photo) candidates.push({ label: describeItem(item), photo });
+      }
+      try {
+        const found = await findSameItem(row.photo, candidates, key);
+        setRows((rs) =>
+          rs.map((r) =>
+            r.key === row.key
+              ? { ...r, ai: r.ai === 'failed' ? 'failed' : 'done', dupChecked: true, aiDuplicate: found ? `${found.sure ? 'Looks like' : 'Might be'} the same item as ${found.candidate.label}` : null }
+              : r,
+          ),
+        );
+      } catch (e) {
+        fail(row, e);
+      }
+    });
+
     setRows((rs) => rs.map((r) => (r.ai === 'busy' ? { ...r, ai: 'none' } : r)));
     setAiRunning(false);
     if (stop) setAiError(`The photo AI stopped: ${stop}. Check the key and credit in Settings.`);
@@ -157,7 +211,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   }
 
   async function saveAll() {
-    if (duplicates.size > 0 && !window.confirm(`${duplicates.size} of these photos ${duplicates.size === 1 ? 'is a copy' : 'are copies'} of one already added.\n\nSave them anyway?`)) return;
+    if (duplicates.size > 0 && !window.confirm(`${duplicates.size} of these ${duplicates.size === 1 ? 'looks like an item' : 'look like items'} already added.\n\nSave them anyway?`)) return;
     setSaving(true);
     setError(null);
     const location = { area, rack: last?.location.rack ?? '', box: last?.location.box ?? '' };
@@ -218,6 +272,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     const earlier = r.hash ? rows.findIndex((o) => o.hash === r.hash) : i;
     if (saved) duplicates.set(r.key, duplicateWarning(saved));
     else if (earlier < i) duplicates.set(r.key, `Same photo as photo ${earlier + 1} above.`);
+    else if (r.aiDuplicate) duplicates.set(r.key, `${r.aiDuplicate} (photo AI)`);
   });
   const pieces = rows.reduce((t, r) => t + r.quantity, 0);
   const genderOptions = (
@@ -232,7 +287,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   );
   const uncategorised = rows.filter((r) => !r.category).length;
   const unsure = rows.filter((r) => r.category && r.needsCheck).length;
-  const aiReady = hasAiKey();
+  const unchecked = rows.filter((r) => !r.dupChecked).length;
+  const aiReady = (state.settings.aiKeys?.length ?? 0) > 0;
   const categoryOptions = (
     <>
       <option value="">Category? (needs check)</option>
@@ -275,7 +331,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
             {duplicates.size > 0 && (
               <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                 <span>
-                  ⚠ {duplicates.size} duplicate photo{duplicates.size === 1 ? '' : 's'} - marked below
+                  ⚠ {duplicates.size} possible duplicate{duplicates.size === 1 ? '' : 's'} - marked below
                 </span>
                 <Button onClick={() => [...duplicates.keys()].forEach(remove)} disabled={saving}>
                   Remove {duplicates.size === 1 ? 'it' : 'them'}
@@ -283,9 +339,13 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
               </div>
             )}
             {aiReady ? (
-              uncategorised > 0 && (
-                <Button variant="primary" className="w-full" disabled={aiRunning || saving} onClick={() => void suggestAll()}>
-                  {aiRunning ? '✨ Looking at photos…' : `✨ Suggest categories for ${uncategorised}`}
+              (uncategorised > 0 || unchecked > 0) && (
+                <Button variant="primary" className="w-full" disabled={aiRunning || saving} onClick={() => void runAi()}>
+                  {aiRunning
+                    ? '✨ Looking at photos…'
+                    : uncategorised > 0
+                      ? `✨ Suggest categories and check for duplicates`
+                      : `✨ Check ${unchecked} for duplicates in stock`}
                 </Button>
               )
             ) : (
@@ -323,7 +383,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 value={allSameCategory ?? 'mixed'}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, category: v, subcategory: '', needsCheck: false })));
+                  if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, category: v, subcategory: '', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null })));
                 }}
               >
                 {allSameCategory === null && <option value="mixed">Different</option>}
@@ -346,7 +406,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                   {duplicates.has(r.key) && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">⚠ {duplicates.get(r.key)}</p>}
                   {r.ai === 'busy' && <p className="text-xs text-slate-500">✨ Looking at this photo…</p>}
                   {r.ai === 'failed' && <p className="text-xs text-red-600">The photo AI couldn't read this one</p>}
-                  {r.ai === 'done' && r.category && (
+                  {r.suggested && r.ai !== 'busy' && r.category && (
                     <p className={`text-xs font-medium ${r.needsCheck ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500'}`}>
                       {r.needsCheck ? '⚠ AI not sure - check' : '✨ Suggested'}
                       {r.subcategory && ` · ${r.subcategory}`}
@@ -361,7 +421,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                   </Select>
                   <Select
                     value={r.category}
-                    onChange={(e) => update(r.key, { category: e.target.value, subcategory: '', needsCheck: false })}
+                    onChange={(e) => update(r.key, { category: e.target.value, subcategory: '', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null })}
                     aria-label={`Category for item ${i + 1}`}
                     className={r.category && !r.needsCheck ? undefined : '!border-amber-400 !bg-amber-50 dark:!border-amber-700 dark:!bg-amber-950'}
                   >

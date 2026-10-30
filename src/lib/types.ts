@@ -31,6 +31,20 @@ export interface Settings {
   businessName: string;
   traderName: string;
   businessAddress: string;
+  /**
+   * Photo AI keys, each encrypted with a Face ID passkey. Passkeys sync
+   * through iCloud Keychain, so a key saved on one phone unlocks on that
+   * person's other devices; anyone else can't read it.
+   */
+  aiKeys?: LockedAiKey[];
+}
+
+export interface LockedAiKey {
+  /** base64 */
+  credentialId: string;
+  salt: string;
+  iv: string;
+  cipher: string;
 }
 
 export type PaymentMethod = '' | 'cash' | 'bank' | 'card' | 'other';

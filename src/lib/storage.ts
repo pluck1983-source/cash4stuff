@@ -61,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   businessName: '',
   traderName: '',
   businessAddress: '',
+  aiKeys: [],
 };
 
 const TAX_BOXES: TaxExpenseBox[] = ['goods', 'travel', 'staff', 'premises', 'repairs', 'office', 'advertising', 'interest', 'financial', 'professional', 'other', 'not_allowable'];
@@ -237,6 +238,9 @@ export function normaliseState(raw: unknown): AppState {
     businessName: str(s.businessName),
     traderName: str(s.traderName),
     businessAddress: str(s.businessAddress),
+    aiKeys: records(s.aiKeys)
+      .map((k) => ({ credentialId: str(k.credentialId), salt: str(k.salt), iv: str(k.iv), cipher: str(k.cipher) }))
+      .filter((k) => k.credentialId && k.salt && k.iv && k.cipher),
   };
   const now = new Date().toISOString();
   const pickups: Pickup[] = records(r.pickups).map((p) => {

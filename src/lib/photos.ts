@@ -73,10 +73,10 @@ export async function clearAllPhotos(): Promise<void> {
 }
 
 /** Shrinks a camera photo to a JPEG no bigger than MAX_EDGE on its longest side. */
-export async function compressImage(file: Blob): Promise<Blob> {
+export async function compressImage(file: Blob, maxEdge = MAX_EDGE): Promise<Blob> {
   // imageOrientation 'from-image' applies the EXIF rotation phones store photos with.
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
   const width = Math.round(bitmap.width * scale);
   const height = Math.round(bitmap.height * scale);
   const canvas = document.createElement('canvas');

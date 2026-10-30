@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppState, Audited, Booking, Employment, Expense, Item, OtherIncome, Pickup, RecurringCost, Settings } from './types';
-import { assignMissingSkus, makeSku, nextSkuNumber } from './sku';
+import { assignMissingSkus, makeSku, nextSkuNumber, skuForNewCategory } from './sku';
 import { auditDefaults, nextReceiptNumber, purchaseCost, withHistory } from './audit';
 import { postDueRecurring } from './recurring';
 import { applyListEdit, type ListEdit } from './lists';
@@ -179,7 +179,8 @@ export function useAppState() {
             // Re-pricing twice in a day keeps only the latest price for that day.
             priceHistory = [...priceHistory.filter((p) => p.date !== today), { date: today, price: item.listPrice }];
           }
-          const next = { ...item, priceHistory, history, updatedAt: stamp() };
+          const sku = previous && item.sku === previous.sku ? skuForNewCategory(item.sku, previous.category, item.category) : item.sku;
+          const next = { ...item, sku, priceHistory, history, updatedAt: stamp() };
           return { ...s, items: previous ? s.items.map((i) => (i.id === item.id ? next : i)) : [...s.items, next] };
         });
         if (replacedPhotoId && replacedPhotoId !== item.photoId) dropPhoto(replacedPhotoId, item.id);

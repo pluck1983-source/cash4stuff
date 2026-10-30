@@ -30,6 +30,7 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
         </div>
         <div className="truncate text-xs text-slate-500">
           {categoryLabel(item)}
+          {!item.category && <span className="font-medium text-amber-700 dark:text-amber-400">{item.gender ? ' · ' : ''}⚠ Needs category</span>}
           {pickup && ` · ${pickup.reference}`}
         </div>
         <div className="mt-1 flex items-center justify-between gap-2">

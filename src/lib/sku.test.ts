@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignMissingSkus, makeSku, nextSkuNumber, skuPrefix } from './sku';
+import { assignMissingSkus, makeSku, nextSkuNumber, skuForNewCategory, skuPrefix } from './sku';
 import { orderSections } from './navOrder';
 
 describe('SKUs', () => {
@@ -29,6 +29,19 @@ describe('SKUs', () => {
     expect(next[1]).toBe(items[1]);
     expect(next[0].updatedAt).toBe('now');
     expect(assignMissingSkus(next, 'later')).toBe(next);
+  });
+});
+
+describe('stand-in SKUs', () => {
+  it('takes the category letters once an uncategorised item gets a category', () => {
+    expect(skuForNewCategory('ITM-0955', '', 'Coats & jackets')).toBe('COA-0955');
+  });
+
+  it('leaves real codes and still-uncategorised items alone', () => {
+    expect(skuForNewCategory('SHO-0955', '', 'Tops')).toBe('SHO-0955');
+    expect(skuForNewCategory('ITM-0955', 'Items', 'Tops')).toBe('ITM-0955');
+    expect(skuForNewCategory('ITM-0955', '', '')).toBe('ITM-0955');
+    expect(skuForNewCategory('LEVI501', '', 'Tops')).toBe('LEVI501');
   });
 });
 

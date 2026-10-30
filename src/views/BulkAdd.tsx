@@ -54,7 +54,11 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   useEffect(() => () => rowsRef.current.forEach((r) => URL.revokeObjectURL(r.previewUrl)), []);
 
   const categories = state.settings.categories;
-  const defaultCategory = last?.category && categories.includes(last.category) ? last.category : (categories[0] ?? 'Other');
+  // A pile of photos is rarely all one thing, so new photos start with no
+  // category (flagged to check) rather than copying the last item's - unless a
+  // category has been picked for the whole batch.
+  const allSameCategory = rows.length > 0 && rows.every((r) => r.category === rows[0].category) ? rows[0].category : null;
+  const defaultCategory = allSameCategory ?? '';
   // New photos follow whatever was last picked for the batch, then the last item added.
   const defaultGender = rows.length > 0 ? rows[rows.length - 1].gender : (last?.gender ?? '');
 
@@ -127,7 +131,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
         remove(row.key);
       }
       try {
-        localStorage.setItem(LAST_KEY, JSON.stringify({ ...last, category: rows[rows.length - 1]?.category ?? defaultCategory, gender: rows[rows.length - 1]?.gender ?? '', location } satisfies LastDefaults));
+        // The category isn't remembered from here, so a bulk batch can't set the next single add's.
+        localStorage.setItem(LAST_KEY, JSON.stringify({ ...last, category: last?.category ?? '', gender: rows[rows.length - 1]?.gender ?? '', location } satisfies LastDefaults));
       } catch {
         // Remembering is a convenience only.
       }
@@ -158,6 +163,17 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       {GENDER_OPTIONS.map((g) => (
         <option key={g} value={g}>
           {GENDER_LABELS[g]}
+        </option>
+      ))}
+    </>
+  );
+  const uncategorised = rows.filter((r) => !r.category).length;
+  const categoryOptions = (
+    <>
+      <option value="">Category? (needs check)</option>
+      {categories.map((c) => (
+        <option key={c} value={c}>
+          {c}
         </option>
       ))}
     </>
@@ -225,6 +241,18 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 {genderOptions}
               </Select>
             </Field>
+            <Field label={`Category for all ${rows.length}`}>
+              <Select
+                value={allSameCategory ?? 'mixed'}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, category: v })));
+                }}
+              >
+                {allSameCategory === null && <option value="mixed">Different</option>}
+                {categoryOptions}
+              </Select>
+            </Field>
             {state.settings.storageAreas.length > 0 && (
               <div>
                 <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Stored at</span>
@@ -246,12 +274,13 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                   <Select value={r.gender} onChange={(e) => update(r.key, { gender: e.target.value as ItemGender })} aria-label={`Women's or men's for item ${i + 1}`}>
                     {genderOptions}
                   </Select>
-                  <Select value={r.category} onChange={(e) => update(r.key, { category: e.target.value })} aria-label={`Category for item ${i + 1}`}>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
+                  <Select
+                    value={r.category}
+                    onChange={(e) => update(r.key, { category: e.target.value })}
+                    aria-label={`Category for item ${i + 1}`}
+                    className={r.category ? undefined : '!border-amber-400 !bg-amber-50 dark:!border-amber-700 dark:!bg-amber-950'}
+                  >
+                    {categoryOptions}
                   </Select>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Qty</span>
@@ -281,6 +310,11 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
             ))}
           </ul>
 
+          {uncategorised > 0 && (
+            <p className="mt-4 text-sm text-amber-800 dark:text-amber-300">
+              ⚠ {uncategorised} without a category - they'll be saved as Uncategorised and flagged in Stock to check later.
+            </p>
+          )}
           <div className="sticky bottom-[var(--tabs-h)] z-10 -mx-4 mt-6 border-t border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 dark:border-slate-800 dark:bg-slate-950/95">
             <Button variant="primary" className="w-full py-3 text-base" disabled={saving || progress !== null} onClick={() => void saveAll()}>
               {saving ? 'Saving…' : `Save ${pieces} item${pieces === 1 ? '' : 's'}`}

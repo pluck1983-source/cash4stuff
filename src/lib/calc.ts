@@ -344,7 +344,7 @@ export interface ItemFilter {
   box: string;
   minPrice: number | null;
   maxPrice: number | null;
-  /** Only items with no list price yet */
+  /** Only unsold items with no list price yet - sold and written-off ones don't need one */
   unpriced: boolean;
   /** Only items flagged to check: the photo AI was unsure, or there's no category */
   needsCheck: boolean;
@@ -369,9 +369,9 @@ export const EMPTY_FILTER: ItemFilter = {
   needsCheck: false,
 };
 
-/** No asking price set yet (bulk photo adds leave it blank) */
-export function isUnpriced(item: Pick<Item, 'listPrice'>): boolean {
-  return !item.listPrice;
+/** Still needs an asking price: unsold with none set yet (bulk photo adds leave it blank) */
+export function isUnpriced(item: Item): boolean {
+  return isHeld(item) && !item.listPrice;
 }
 
 /** The photo AI was unsure of its guess, or the item has no category yet */

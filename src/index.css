@@ -94,6 +94,17 @@ textarea {
 }
 
 /*
+ * Puts the pinned phone header and tab bar back where they belong when iOS
+ * leaves the page shifted after the keyboard closes (see lib/viewport.ts).
+ */
+.vv-top {
+  transform: translateY(var(--vv-top, 0px));
+}
+.vv-bottom {
+  transform: translateY(var(--vv-bottom, 0px));
+}
+
+/*
  * Height of the phone tab bar, including the iPhone home-indicator inset.
  * BottomTabs measures the real bar and overwrites this; the fallback covers
  * the first paint. Anything pinned above the bar, and the page's bottom

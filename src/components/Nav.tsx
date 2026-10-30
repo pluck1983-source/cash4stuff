@@ -73,7 +73,7 @@ export function BottomTabs({ tabs, section }: { tabs: Tab[]; section: Section })
   const scrollBy = (dir: 1 | -1) => strip.current?.scrollBy({ left: dir * (strip.current.clientWidth * 0.6), behavior: 'smooth' });
 
   return (
-    <nav ref={bar} className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Tabs">
+    <nav ref={bar} className="pb-safe vv-bottom fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Tabs">
       <div ref={strip} onScroll={measure} className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto">
         {tabs.map((n) => {
           const active = section === n.section;

@@ -29,7 +29,14 @@ const STATE_KEY = 'cash4stuff-gdrive-oauth-state';
 /** Set when a silent re-sign-in has been tried this session, so it isn't retried in a loop */
 const SILENT_TRIED_KEY = 'cash4stuff-gdrive-silent-tried';
 const SIGN_IN_ERROR_KEY = 'cash4stuff-gdrive-sign-in-error';
+/** Set when Google refused a silent renewal, so screen changes stop bouncing to Google until a sign-in works */
+const SILENT_FAILED_KEY = 'cash4stuff-gdrive-silent-failed';
+/** The screen to come back to after the round trip to Google */
+const RETURN_KEY = 'cash4stuff-gdrive-return-to';
 const SILENT_RETRY_MS = 5 * 60_000;
+/** Renew this long before the hour is up, so a busy session never sees it run out */
+const RENEW_BEFORE_MS = 15 * 60_000;
+const SILENT_ERRORS = ['interaction_required', 'login_required', 'consent_required', 'account_selection_required'];
 
 /** A problem from the last Google sign-in, read once */
 export function takeSignInError(): string | null {
@@ -55,16 +62,19 @@ function redirectUri(): string {
   return new URL(import.meta.env.BASE_URL, window.location.origin).href;
 }
 
-function readToken(): StoredToken | null {
+function readStoredToken(): StoredToken | null {
   try {
     const raw = localStorage.getItem(TOKEN_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredToken;
-    // Treat tokens as expired a minute early so a request doesn't race expiry.
-    return parsed.expiresAt - 60_000 > Date.now() ? parsed : null;
+    return raw ? (JSON.parse(raw) as StoredToken) : null;
   } catch {
     return null;
   }
+}
+
+function readToken(): StoredToken | null {
+  const stored = readStoredToken();
+  // Treat tokens as expired a minute early so a request doesn't race expiry.
+  return stored && stored.expiresAt - 60_000 > Date.now() ? stored : null;
 }
 
 function writeToken(token: StoredToken | null) {
@@ -86,7 +96,9 @@ function consumeRedirectResult() {
   const token = params.get('access_token');
   const error = params.get('error');
   const granted = params.get('scope') ?? '';
-  if (error && !['interaction_required', 'login_required', 'consent_required', 'account_selection_required'].includes(error)) {
+  if (error && SILENT_ERRORS.includes(error)) {
+    localStorage.setItem(SILENT_FAILED_KEY, '1');
+  } else if (error) {
     sessionStorage.setItem(SIGN_IN_ERROR_KEY, error === 'access_denied' ? 'Google sign-in was cancelled or blocked. Check this Google account is added as a test user, then try again.' : `Google sign-in failed (${error}).`);
   } else if (token && granted && !granted.includes('auth/drive')) {
     // Google's consent screen lets people untick Drive access - without it nothing can sync.
@@ -94,8 +106,12 @@ function consumeRedirectResult() {
   } else if (token) {
     writeToken({ token, expiresAt: Date.now() + Number(params.get('expires_in') ?? 3600) * 1000 });
     localStorage.removeItem(SILENT_TRIED_KEY);
+    localStorage.removeItem(SILENT_FAILED_KEY);
   }
-  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  // Back to the screen the user was on, rather than the home screen.
+  const returnTo = localStorage.getItem(RETURN_KEY) ?? '';
+  localStorage.removeItem(RETURN_KEY);
+  window.history.replaceState(null, '', window.location.pathname + window.location.search + (returnTo.startsWith('#/') ? returnTo : ''));
 }
 
 consumeRedirectResult();
@@ -104,6 +120,7 @@ function redirectToGoogle(silent: boolean, loginHint?: string | null): Promise<n
   if (!CLIENT_ID) return Promise.reject(new Error('Google Drive sync is not configured for this build'));
   const state = crypto.randomUUID();
   localStorage.setItem(STATE_KEY, state);
+  localStorage.setItem(RETURN_KEY, window.location.hash);
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: redirectUri(),
@@ -235,6 +252,22 @@ export const googleDriveProvider: CloudProvider = {
   isConfigured: () => Boolean(CLIENT_ID),
 
   hasToken: () => readToken() !== null,
+
+  needsRenewal() {
+    const stored = readStoredToken();
+    const lastTry = Number(localStorage.getItem(SILENT_TRIED_KEY) ?? 0);
+    return (
+      stored !== null &&
+      stored.expiresAt - RENEW_BEFORE_MS < Date.now() &&
+      !localStorage.getItem(SILENT_FAILED_KEY) &&
+      Date.now() - lastTry > SILENT_RETRY_MS
+    );
+  },
+
+  renew(loginHint) {
+    localStorage.setItem(SILENT_TRIED_KEY, String(Date.now()));
+    return redirectToGoogle(true, loginHint);
+  },
 
   async signIn(interactive, mayRedirect = false, loginHint = null) {
     if (interactive) return redirectToGoogle(false);

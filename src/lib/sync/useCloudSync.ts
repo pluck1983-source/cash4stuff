@@ -290,6 +290,27 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
     };
   }, [sync]);
 
+  // Tokens only last an hour, so during a long session renew a little before
+  // it's up, just after the user moves to another screen: whatever was being
+  // typed on the last one has been saved or left, and the new one is still
+  // untouched. The round trip comes back to the same screen.
+  useEffect(() => {
+    let timer = 0;
+    function onScreenChange() {
+      window.clearTimeout(timer);
+      // A moment's grace so a just-saved photo finishes writing to the device.
+      timer = window.setTimeout(() => {
+        const meta = readMeta();
+        if (meta?.syncedHash != null && !running.current && navigator.onLine && provider.needsRenewal()) void provider.renew(meta.accountEmail);
+      }, 1500);
+    }
+    window.addEventListener('hashchange', onScreenChange);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('hashchange', onScreenChange);
+    };
+  }, []);
+
   // A desktop left open all day should still pick up what the phone logs.
   // Only while the sign-in is still valid - an expired one would otherwise
   // bounce the page to Google and back with no warning.

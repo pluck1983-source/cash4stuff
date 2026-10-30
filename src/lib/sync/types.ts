@@ -43,6 +43,13 @@ export interface CloudProvider {
   deletePhoto(photoId: string): Promise<void>;
   /** True if a usable sign-in exists right now without any redirect */
   hasToken(): boolean;
+  /**
+   * True when the sign-in has run out or will soon, and a silent renewal is
+   * worth trying (it hasn't just been tried, and the last one didn't fail).
+   */
+  needsRenewal(): boolean;
+  /** Silent round trip to renew the sign-in. Reloads the page on the same screen, so it never resolves. */
+  renew(loginHint: string | null): Promise<never>;
 }
 
 export class AuthRequiredError extends Error {

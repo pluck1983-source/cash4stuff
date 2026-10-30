@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppState } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { customerStats, pickupStats } from '../lib/calc';
+import { EMPTY_FILTER, UNCATEGORISED, customerStats, filterItems, pickupStats, type ItemFilter } from '../lib/calc';
 import { kg, money, parseNumber, percent, shortDate } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
 import { Button, Card, Empty, Input, LinkButton, PageHeader, Select, Stat } from '../components/ui';
@@ -16,6 +16,21 @@ import { paymentLabel } from '../lib/audit';
 import { mapsUrl } from '../lib/diary';
 import { MergeCustomers } from '../components/MergeCustomers';
 
+/** The filters that make sense inside one customer's items */
+type ItemListFilter = Pick<ItemFilter, 'text' | 'category' | 'status' | 'unpriced'>;
+const NO_LIST_FILTER: ItemListFilter = { text: '', category: '', status: '', unpriced: false };
+const LIST_FILTER_KEY = 'cash4stuff-pickup-filter';
+
+// Kept for the session so opening an item to price it and coming back keeps the list as it was.
+function readListFilter(): ItemListFilter {
+  try {
+    const raw = sessionStorage.getItem(LIST_FILTER_KEY);
+    return raw ? { ...NO_LIST_FILTER, ...(JSON.parse(raw) as Partial<ItemListFilter>) } : NO_LIST_FILTER;
+  } catch {
+    return NO_LIST_FILTER;
+  }
+}
+
 export function PickupDetailView({ state, books, actions, id }: { state: AppState; books: AppState; actions: AppActions; id: string }) {
   const pickup = books.pickups.find((p) => p.id === id);
   const [editing, setEditing] = useState(false);
@@ -25,6 +40,16 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
   useEffect(() => sessionStorage.removeItem(OPEN_QUICK_ENTRY_KEY), []);
   const [costCategory, setCostCategory] = useState('Fuel');
   const [costAmount, setCostAmount] = useState('');
+  const [listFilter, setListFilterState] = useState<ItemListFilter>(readListFilter);
+  const setListFilter = (patch: Partial<ItemListFilter>) => {
+    const next = { ...listFilter, ...patch };
+    setListFilterState(next);
+    try {
+      sessionStorage.setItem(LIST_FILTER_KEY, JSON.stringify(next));
+    } catch {
+      // Remembering the filter is a convenience only.
+    }
+  };
 
   if (!pickup) {
     return (
@@ -40,6 +65,12 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
   const ids = new Set(customerPickups.map((p) => p.id));
   const s = customerStats(state, pickup.id) ?? pickupStats(state, pickup);
   const items = state.items.filter((i) => i.pickupId !== null && ids.has(i.pickupId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // Same rules as the Stock tab filters, run over just this customer's items.
+  const filterOf = (f: ItemListFilter) => filterItems({ ...state, items }, { ...EMPTY_FILTER, ...f });
+  const shown = filterOf(listFilter);
+  const unpricedCount = filterOf({ ...listFilter, unpriced: true }).length;
+  const filtered = listFilter.text.trim() !== '' || listFilter.category !== '' || listFilter.status !== '' || listFilter.unpriced;
+  const uncategorisedCount = items.filter((i) => !state.settings.categories.includes(i.category)).length;
   const linkedExpenses = state.expenses.filter((e) => e.pickupId === pickup.id);
 
   return (
@@ -152,11 +183,53 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
           <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
             Items ({s.itemCount}){s.costPerItem !== null && <span className="font-normal text-slate-500"> · {money(s.costPerItem)} cost each</span>}
           </h2>
+          {items.length > 0 && (
+            <div className="mb-3 space-y-2">
+              <Input type="search" value={listFilter.text} onChange={(e) => setListFilter({ text: e.target.value })} placeholder="Search SKU, name, keywords…" aria-label="Search items" />
+              <div className="flex flex-wrap gap-2">
+                <Select value={listFilter.category} onChange={(e) => setListFilter({ category: e.target.value })} aria-label="Category" className="min-w-0 flex-1 basis-36">
+                  <option value="">All categories</option>
+                  {state.settings.categories.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                  {(uncategorisedCount > 0 || listFilter.category === UNCATEGORISED) && <option value={UNCATEGORISED}>Uncategorised ({uncategorisedCount})</option>}
+                </Select>
+                <Select value={listFilter.status} onChange={(e) => setListFilter({ status: e.target.value as ItemListFilter['status'] })} aria-label="Status" className="min-w-0 flex-1 basis-36">
+                  <option value="">Any status</option>
+                  <option value="held">Unsold</option>
+                  <option value="sold">Sold</option>
+                  <option value="written_off">Written off</option>
+                </Select>
+                <button
+                  type="button"
+                  aria-pressed={listFilter.unpriced}
+                  onClick={() => setListFilter({ unpriced: !listFilter.unpriced })}
+                  className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-medium ${
+                    listFilter.unpriced
+                      ? 'border-brand-600 bg-brand-600 text-white'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+                  }`}
+                >
+                  No price ({unpricedCount})
+                </button>
+              </div>
+              {filtered && (
+                <p className="flex items-center justify-between text-sm text-slate-500">
+                  Showing {shown.length} of {items.length}
+                  <button type="button" className="text-brand-700 underline dark:text-brand-400" onClick={() => setListFilter(NO_LIST_FILTER)}>
+                    Clear filters
+                  </button>
+                </p>
+              )}
+            </div>
+          )}
           {items.length === 0 ? (
             <Empty>No items logged for this customer yet.</Empty>
+          ) : shown.length === 0 ? (
+            <Empty>No items match these filters.</Empty>
           ) : (
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              {items.map((i) => (
+              {shown.map((i) => (
                 <ItemCard key={i.id} item={i} />
               ))}
             </div>

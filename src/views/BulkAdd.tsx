@@ -315,7 +315,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
               ⚠ {uncategorised} without a category - they'll be saved as Uncategorised and flagged in Stock to check later.
             </p>
           )}
-          <div className="sticky bottom-[var(--tabs-h)] z-10 -mx-4 mt-6 border-t border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 dark:border-slate-800 dark:bg-slate-950/95">
+          <div className="vv-bottom sticky bottom-[var(--tabs-h)] z-10 -mx-4 mt-6 border-t border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 dark:border-slate-800 dark:bg-slate-950/95">
             <Button variant="primary" className="w-full py-3 text-base" disabled={saving || progress !== null} onClick={() => void saveAll()}>
               {saving ? 'Saving…' : `Save ${pieces} item${pieces === 1 ? '' : 's'}`}
             </Button>

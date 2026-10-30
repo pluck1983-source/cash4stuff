@@ -24,6 +24,7 @@ import { useToast } from './lib/toast';
 import { AdminView } from './views/Admin';
 import { DiaryView } from './views/Diary';
 import { TripBar } from './components/TripBar';
+import { usePinnedBarsFix } from './lib/viewport';
 
 
 function sectionOf(route: Route): Section {
@@ -50,6 +51,7 @@ export default function App() {
   const route = useRoute();
   const isDesktop = useIsDesktop();
   const toastMessage = useToast();
+  usePinnedBarsFix(!isDesktop);
 
   const signOut = useCallback(
     async (wipeDevice: boolean) => {
@@ -150,7 +152,7 @@ export default function App() {
   const toast = toastMessage && (
     <div
       role="status"
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabs-h)+1rem)] z-50 flex justify-center px-4 lg:bottom-6 lg:left-56"
+      className="vv-bottom pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabs-h)+1rem)] z-50 flex justify-center px-4 lg:bottom-6 lg:left-56"
     >
       <div className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900">{toastMessage}</div>
     </div>
@@ -198,7 +200,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen pb-[calc(var(--tabs-h)+1rem)] text-slate-900 dark:text-slate-100">
-      <div className="sticky-safe sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-900/95">
+      <div className="sticky-safe vv-top sticky top-0 z-20 bg-white/95 backdrop-blur dark:bg-slate-900/95">
       <header className="flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
         <a href={routeHref({ name: 'dashboard' })} className="flex min-w-0 flex-1 items-center" aria-label="Wardrobe to Wallet - home">
           <Wordmark className="text-xl" />

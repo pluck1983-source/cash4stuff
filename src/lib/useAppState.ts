@@ -54,7 +54,7 @@ export function useAppState() {
     }
   }, [state]);
 
-  const replaceState = useCallback((next: AppState) => setState(next), []);
+  const replaceState = useCallback((next: AppState | ((current: AppState) => AppState)) => setState(next), []);
 
   // Post repeating costs (rent etc.) that have fallen due - on open, after any
   // change (including a sync bringing in a new plan) and when the app comes back.

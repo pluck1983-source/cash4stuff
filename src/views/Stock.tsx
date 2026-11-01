@@ -73,7 +73,7 @@ export function StockView({ state }: { state: AppState }) {
         .filter(Boolean),
     ),
   ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const activeFilters = Object.entries(filter).filter(([k, v]) => k !== 'text' && k !== 'category' && k !== 'unpriced' && k !== 'needsCheck' && v !== '' && v !== null && !(k === 'status' && v === 'held')).length;
+  const activeFilters = Object.entries(filter).filter(([k, v]) => k !== 'text' && k !== 'category' && k !== 'subcategory' && k !== 'unpriced' && k !== 'needsCheck' && v !== '' && v !== null && !(k === 'status' && v === 'held')).length;
   const filtersOpen = isDesktop || showFilters;
 
   return (
@@ -102,14 +102,22 @@ export function StockView({ state }: { state: AppState }) {
         )}
       </div>
 
-      <div className="mb-3 flex gap-2">
-        <Select value={filter.category} onChange={(e) => setFilter({ category: e.target.value, subcategory: '' })} aria-label="Category" className="min-w-0 flex-1 md:max-w-xs">
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Select value={filter.category} onChange={(e) => setFilter({ category: e.target.value, subcategory: '' })} aria-label="Category" className="min-w-0 flex-1 basis-40 md:max-w-xs">
           <option value="">All categories</option>
           {state.settings.categories.map((c) => (
             <option key={c}>{c}</option>
           ))}
           {(uncategorisedCount > 0 || filter.category === UNCATEGORISED) && <option value={UNCATEGORISED}>Uncategorised ({uncategorisedCount})</option>}
         </Select>
+        {(state.settings.subcategories[filter.category]?.length ?? 0) > 0 && (
+          <Select value={filter.subcategory} onChange={(e) => setFilter({ subcategory: e.target.value })} aria-label="Sub-category" className="min-w-0 flex-1 basis-40 md:max-w-xs">
+            <option value="">All {filter.category.toLowerCase()}</option>
+            {state.settings.subcategories[filter.category].map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </Select>
+        )}
         <button
           type="button"
           aria-pressed={filter.unpriced}
@@ -156,14 +164,6 @@ export function StockView({ state }: { state: AppState }) {
               </option>
             ))}
           </Select>
-          {(state.settings.subcategories[filter.category]?.length ?? 0) > 0 && (
-            <Select value={filter.subcategory} onChange={(e) => setFilter({ subcategory: e.target.value })} aria-label="Sub-category">
-              <option value="">All {filter.category.toLowerCase()}</option>
-              {state.settings.subcategories[filter.category].map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </Select>
-          )}
           <Select value={filter.pickupId} onChange={(e) => setFilter({ pickupId: e.target.value })} aria-label="Customer">
             <option value="">All customers</option>
             {/* One entry per customer; a filter saved on one of their other pickups still shows as them */}
@@ -220,7 +220,7 @@ export function StockView({ state }: { state: AppState }) {
           {soldValue > 0 && <> · {money(soldValue)} sold</>}
         </span>
         <span className="flex items-center gap-2">
-          {(activeFilters > 0 || filter.text || filter.category || filter.unpriced || filter.needsCheck) && (
+          {(activeFilters > 0 || filter.text || filter.category || filter.subcategory || filter.unpriced || filter.needsCheck) && (
             <button type="button" className="underline" onClick={() => setFilter({ ...EMPTY_FILTER, status: 'held' })}>
               Clear filters
             </button>

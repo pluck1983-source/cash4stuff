@@ -56,7 +56,7 @@ function updateMeta(patch: Partial<SyncMeta>) {
   if (meta) writeMeta({ ...meta, ...patch });
 }
 
-export function useCloudSync(state: AppState, replaceState: (next: AppState) => void) {
+export function useCloudSync(state: AppState, replaceState: (next: AppState | ((current: AppState) => AppState)) => void) {
   const [status, setStatus] = useState<SyncStatus>(() => {
     if (!provider.isConfigured()) return 'unconfigured';
     return readMeta() ? 'syncing' : 'off';
@@ -174,7 +174,8 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
         recordSynced(hashState(local), uploaded);
       } else if (action === 'merge' && remote) {
         const remoteState = importStateFromJson(await provider.download(remote));
-        const merged = mergeStates(stateRef.current, remoteState);
+        const before = stateRef.current;
+        const merged = mergeStates(before, remoteState);
         const mergedHash = hashState(merged);
         // Record before replacing state so the resulting change isn't seen as a local edit to push back.
         if (mergedHash !== hashState(remoteState)) {
@@ -183,7 +184,10 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState) => 
         } else {
           recordSynced(mergedHash, remote);
         }
-        if (mergedHash !== hashState(stateRef.current)) replaceState(merged);
+        // The upload above takes a moment. Anything changed meanwhile (accepting an
+        // AI suggestion, adding a price) is newer, so merge it back in rather than
+        // overwrite it - that used to undo the change and bring the item back.
+        if (mergedHash !== hashState(stateRef.current)) replaceState((current) => (current === before ? merged : mergeStates(current, merged)));
       }
 
       await syncPhotos();

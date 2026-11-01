@@ -15,6 +15,12 @@ describe('viewportShift', () => {
     expect(viewportShift({ offsetTop: 0, height: 1080, scale: 1 }, 760)).toEqual({ top: 0, bottom: 320 });
   });
 
+  it('never lifts the tab bar while something covers the bottom', () => {
+    // iPhone with a select picker or keyboard up: visible area 340px shorter than the page
+    expect(viewportShift({ offsetTop: 0, height: 504, scale: 1 }, 844)).toEqual({ top: 0, bottom: 0 });
+    expect(viewportShift({ offsetTop: 120, height: 504, scale: 1 }, 844)).toEqual({ top: 120, bottom: 0 });
+  });
+
   it('leaves the bars alone while zoomed in', () => {
     expect(viewportShift({ offsetTop: 200, height: 500, scale: 2 }, 1080)).toEqual({ top: 0, bottom: 0 });
   });

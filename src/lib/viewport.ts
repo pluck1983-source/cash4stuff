@@ -11,20 +11,25 @@ import { useEffect } from 'react';
  * off the top. Nothing in our CSS can see that, so we measure it and move
  * the bars back by the difference.
  *
- * Returns zero while zoomed in (moving the bars would fight the pinch) and
+ * Never moves a bar up, and returns zero while zoomed in (moving the bars would fight the pinch) and
  * for differences of a couple of pixels (toolbar rounding).
  */
 export function viewportShift(v: { offsetTop: number; height: number; scale: number }, innerHeight: number): { top: number; bottom: number } {
   if (Math.abs(v.scale - 1) > 0.01) return { top: 0, bottom: 0 };
   const top = Math.round(v.offsetTop);
-  const bottom = Math.round(v.offsetTop + v.height - innerHeight);
-  return { top: Math.abs(top) > 2 ? top : 0, bottom: Math.abs(bottom) > 2 ? bottom : 0 };
+  // Only ever moves the tab bar down. A visible area shorter than the page
+  // means something (the keyboard, a select's picker) is covering the bottom,
+  // and lifting the bar by that much is what left it stranded mid-screen.
+  const bottom = Math.max(0, Math.round(v.offsetTop + v.height - innerHeight));
+  return { top: top > 2 ? top : 0, bottom: bottom > 2 ? bottom : 0 };
 }
 
 function typing(): boolean {
   const el = document.activeElement;
   if (!(el instanceof HTMLElement)) return false;
-  if (el.isContentEditable || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return true;
+  // Not selects: iOS keeps a select focused after its picker closes, which used
+  // to switch this fix off until the screen changed.
+  if (el.isContentEditable || el instanceof HTMLTextAreaElement) return true;
   return el instanceof HTMLInputElement && !['button', 'checkbox', 'radio', 'submit', 'reset', 'file', 'range', 'color'].includes(el.type);
 }
 
@@ -63,6 +68,7 @@ export function usePinnedBarsFix(enabled: boolean) {
     window.addEventListener('scroll', update, { passive: true });
     window.addEventListener('focusin', update);
     window.addEventListener('focusout', afterKeyboard);
+    window.addEventListener('change', afterKeyboard);
     window.addEventListener('pageshow', update);
     document.addEventListener('visibilitychange', update);
     update();
@@ -73,6 +79,7 @@ export function usePinnedBarsFix(enabled: boolean) {
       window.removeEventListener('scroll', update);
       window.removeEventListener('focusin', update);
       window.removeEventListener('focusout', afterKeyboard);
+      window.removeEventListener('change', afterKeyboard);
       window.removeEventListener('pageshow', update);
       document.removeEventListener('visibilitychange', update);
       root.removeProperty('--vv-top');

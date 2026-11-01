@@ -11,8 +11,18 @@ describe('photo AI answers', () => {
       gender: 'mens',
       category: 'Tops',
       subcategory: 'Shirts',
+      keywords: '',
       sure: true,
     });
+  });
+
+  it('matches loosely and fills brand, colour and size into keywords', () => {
+    const lists = { categories: ['Jumpers & knitwear', 'Jeans & trousers'], subcategories: { 'Jumpers & knitwear': ['Cardigans', 'Jumpers'], 'Jeans & trousers': ['Jeans'] } };
+    expect(
+      cleanSuggestion({ name: 'Pink cardigan', gender: 'womens', category: 'Jumpers and Knitwear', subcategory: 'cardigan', brand: 'M&S', colour: 'pink', size: 'Size 14', sure: true }, lists),
+    ).toMatchObject({ category: 'Jumpers & knitwear', subcategory: 'Cardigans', keywords: 'M&S, pink, size 14', sure: true });
+    // A known type under a made-up category still finds its category
+    expect(cleanSuggestion({ name: 'Jeans', gender: 'mens', category: 'Bottoms', subcategory: 'Jeans', sure: true }, lists)).toMatchObject({ category: 'Jeans & trousers', subcategory: 'Jeans' });
   });
 
   it('blanks anything not in the lists and flags it', () => {
@@ -21,6 +31,7 @@ describe('photo AI answers', () => {
       gender: '',
       category: '',
       subcategory: '',
+      keywords: '',
       sure: false,
     });
     expect(cleanSuggestion({ name: 'Boots', gender: 'womens', category: 'Shoes', subcategory: 'Boots', sure: false }, settings)).toMatchObject({ category: 'Shoes', subcategory: '', sure: false });

@@ -15,6 +15,7 @@ import { LAST_KEY, readLast, type LastDefaults } from '../lib/itemDefaults';
 import { ZoomableImg } from '../components/Lightbox';
 import { aiKeyUnlocked, unlockAiKey } from '../lib/aiKey';
 import type { Candidate } from '../lib/autoCategorise';
+import { fillFromSuggestion, type BulkField } from '../lib/aiReview';
 
 /** One photo waiting to become an item */
 interface Row {
@@ -29,11 +30,19 @@ interface Row {
   gender: ItemGender;
   category: string;
   subcategory: string;
+  /** Brand, colour, size - search words */
+  keywords: string;
+  /** Fields picked or typed by hand - the photo AI leaves these alone */
+  manual: Partial<Record<BulkField, true>>;
   quantity: number;
   /** Asking price each, as typed ('' = not priced yet) */
   price: string;
   /** Photo AI progress for this photo */
   ai: 'none' | 'busy' | 'done' | 'failed';
+  /** The photo AI has filled in what it could see */
+  aiRead: boolean;
+  /** Why the photo AI couldn't read it */
+  aiFailure: string | null;
   /** The AI was unsure - saved with a "Needs check" flag unless someone picks the category */
   needsCheck: boolean;
   /** Category came from the photo AI */
@@ -63,6 +72,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
   const [aiRunning, setAiRunning] = useState(false);
   const aiRunningRef = useRef(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
 
   // Previews are freed when the page closes.
@@ -91,7 +102,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       try {
         const hash = await photoFingerprint(file).catch(() => null);
         const photo = await compressImage(file);
-        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, gender: defaultGender, category: defaultCategory, subcategory: '', quantity: 1, price: '', ai: 'none', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null };
+        const row: Row = { key: newId(), photo, hash, previewUrl: URL.createObjectURL(photo), name: '', pickupId: defaultPickup, gender: defaultGender, category: defaultCategory, subcategory: '', keywords: '', manual: {}, quantity: 1, price: '', ai: 'none', aiRead: false, aiFailure: null, needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null };
         added.push(row);
         setRows((rs) => [...rs, row]);
       } catch {
@@ -109,10 +120,20 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
 
-  /** Asks the photo AI about each photo that has no category yet, a few at a time */
+  /** A change made by hand, so the photo AI won't overwrite it */
+  function updateByHand(key: string, patch: Partial<Row>, fields: BulkField[]) {
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch, manual: { ...r.manual, ...Object.fromEntries(fields.map((f) => [f, true])) } } : r)));
+  }
+
+  /** The same, for every photo ("... for all") */
+  function updateAllByHand(patch: Partial<Row>, fields: BulkField[]) {
+    setRows((rs) => rs.map((r) => ({ ...r, ...patch, manual: { ...r.manual, ...Object.fromEntries(fields.map((f) => [f, true])) } })));
+  }
+
   /**
-   * Photo AI: suggests what each uncategorised photo is, then looks for the same
-   * item already in stock (or earlier in this batch) under a different photo.
+   * Photo AI: fills in name, women's/men's, category, sub-category and brand/colour
+   * for each photo it hasn't read yet (keeping anything set by hand), then looks
+   * for the same item already in stock (or earlier in this batch) under a different photo.
    */
   async function runAi(justAdded: Row[] = []) {
     setAiError(null);
@@ -147,26 +168,41 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
       await Promise.all([worker(), worker(), worker()]);
     };
 
-    const toSuggest = batch.filter((r) => !r.category);
-    setRows((rs) => rs.map((r) => (toSuggest.some((t) => t.key === r.key) ? { ...r, ai: 'busy' } : r)));
+    const toSuggest = batch.filter((r) => !r.aiRead);
+    setRows((rs) => rs.map((r) => (toSuggest.some((t) => t.key === r.key) ? { ...r, ai: 'busy', aiFailure: null } : r)));
+    setAiSummary(null);
+    let done = 0;
+    let unreadable = 0;
+    let noCategory = 0;
+    setAiProgress({ done, total: toSuggest.length });
     await inParallel(toSuggest, async (row) => {
       try {
-        const s = await suggestFromPhoto(row.photo, state.settings, key);
-        latest.set(row.key, { ...row, category: s.category, gender: row.gender || s.gender });
-        // Only fills what's still blank, so anything picked by hand meanwhile stays.
-        setRows((rs) =>
-          rs.map((r) =>
-            r.key !== row.key
-              ? r
-              : r.category
-                ? { ...r, ai: 'done' }
-                : { ...r, ai: 'done', name: r.name || s.name, gender: r.gender || s.gender, category: s.category, subcategory: s.subcategory, needsCheck: !s.sure, suggested: s.category !== '' },
-          ),
-        );
+        const known = { category: row.manual.category ? row.category : undefined, gender: row.manual.gender ? row.gender || undefined : undefined };
+        const s = await suggestFromPhoto(row.photo, state.settings, key, known);
+        latest.set(row.key, { ...fillFromSuggestion(row, s, state.settings.subcategories), aiRead: true });
+        if (!s.category && !row.manual.category) noCategory++;
+        // Read the row again so anything picked by hand meanwhile stays.
+        setRows((rs) => rs.map((r) => (r.key !== row.key ? r : { ...fillFromSuggestion(r, s, state.settings.subcategories), ai: 'done', aiRead: true })));
       } catch (e) {
+        unreadable++;
+        setRows((rs) => rs.map((r) => (r.key === row.key ? { ...r, aiFailure: e instanceof Error ? e.message : 'unknown error' } : r)));
         fail(row, e);
       }
+      setAiProgress({ done: ++done, total: toSuggest.length });
     });
+    setAiProgress(null);
+    if (toSuggest.length) {
+      const read = toSuggest.length - unreadable;
+      setAiSummary(
+        [
+          `✨ Photo AI filled in ${read} of ${toSuggest.length} photo${toSuggest.length === 1 ? '' : 's'}`,
+          noCategory > 0 && `${noCategory} it couldn't put in a category`,
+          unreadable > 0 && `${unreadable} it couldn't read (tap the button to try again)`,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      );
+    }
 
     const photos = new Map<string, Blob | null>();
     const stockPhoto = async (id: string) => {
@@ -231,7 +267,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
         actions.addItem({
           pickupId: row.pickupId,
           name: row.name.trim(),
-          keywords: '',
+          keywords: row.keywords.trim(),
           category: row.category,
           subcategory: row.category ? row.subcategory : '',
           gender: row.gender,
@@ -296,6 +332,19 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     </>
   );
   const uncategorised = rows.filter((r) => !r.category).length;
+  const unread = rows.filter((r) => !r.aiRead).length;
+  const subcategoryOptions = (category: string) => (
+    <>
+      <option value="">Sub-category?</option>
+      {(state.settings.subcategories[category] ?? []).map((s) => (
+        <option key={s} value={s}>
+          {s}
+        </option>
+      ))}
+    </>
+  );
+  const hasSubs = (category: string) => (state.settings.subcategories[category] ?? []).length > 0;
+  const allSameSub = rows.length > 0 && rows.every((r) => r.subcategory === rows[0].subcategory) ? rows[0].subcategory : null;
   const unsure = rows.filter((r) => r.category && r.needsCheck).length;
   const unchecked = rows.filter((r) => !r.dupChecked).length;
   const aiReady = (state.settings.aiKeys?.length ?? 0) > 0;
@@ -349,20 +398,23 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
               </div>
             )}
             {aiReady ? (
-              (uncategorised > 0 || unchecked > 0) && (
+              (aiRunning || unread > 0 || unchecked > 0) && (
                 <Button variant="primary" className="w-full" disabled={aiRunning || saving} onClick={() => void runAi()}>
                   {aiRunning
-                    ? '✨ Looking at photos…'
-                    : uncategorised > 0
-                      ? `✨ Suggest categories and check for duplicates`
+                    ? aiProgress
+                      ? `✨ Reading photos… ${aiProgress.done} of ${aiProgress.total}`
+                      : '✨ Checking for duplicates…'
+                    : unread > 0
+                      ? `✨ Fill in ${unread} photo${unread === 1 ? '' : 's'} with the photo AI`
                       : `✨ Check ${unchecked} for duplicates in stock`}
                 </Button>
               )
             ) : (
-              <p className="text-xs text-slate-500">
-                Want categories filled in for you? <a className="underline" href={routeHref({ name: 'settings' })}>Set up the photo AI in Settings</a>.
+              <p className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                The photo AI isn't set up on this device, so nothing is filled in for you. <a className="underline" href={routeHref({ name: 'settings' })}>Set it up in Settings</a>.
               </p>
             )}
+            {aiSummary && <p className="text-sm text-slate-600 dark:text-slate-300">{aiSummary}</p>}
             {aiError && <p className="text-sm text-red-600">{aiError}</p>}
             <Field label={`Customer for all ${rows.length}`}>
               <Select
@@ -381,7 +433,7 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 value={allSameGender ?? 'mixed'}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, gender: v as ItemGender })));
+                  if (v !== 'mixed') updateAllByHand({ gender: v as ItemGender }, ['gender']);
                 }}
               >
                 {allSameGender === null && <option value="mixed">Different</option>}
@@ -393,13 +445,27 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 value={allSameCategory ?? 'mixed'}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (v !== 'mixed') setRows((rs) => rs.map((r) => ({ ...r, category: v, subcategory: '', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null })));
+                  if (v !== 'mixed') updateAllByHand({ category: v, subcategory: '', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null }, ['category']);
                 }}
               >
                 {allSameCategory === null && <option value="mixed">Different</option>}
                 {categoryOptions}
               </Select>
             </Field>
+            {allSameCategory && hasSubs(allSameCategory) && (
+              <Field label={`Sub-category for all ${rows.length}`}>
+                <Select
+                  value={allSameSub ?? 'mixed'}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v !== 'mixed') updateAllByHand({ subcategory: v }, ['subcategory']);
+                  }}
+                >
+                  {allSameSub === null && <option value="mixed">Different</option>}
+                  {subcategoryOptions(allSameCategory)}
+                </Select>
+              </Field>
+            )}
             {state.settings.storageAreas.length > 0 && (
               <div>
                 <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Stored at</span>
@@ -415,28 +481,33 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 <div className="min-w-0 flex-1 space-y-1.5">
                   {duplicates.has(r.key) && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">⚠ {duplicates.get(r.key)}</p>}
                   {r.ai === 'busy' && <p className="text-xs text-slate-500">✨ Looking at this photo…</p>}
-                  {r.ai === 'failed' && <p className="text-xs text-red-600">The photo AI couldn't read this one</p>}
-                  {r.suggested && r.ai !== 'busy' && r.category && (
+                  {r.ai === 'failed' && <p className="text-xs text-red-600">The photo AI couldn't read this one{r.aiFailure && `: ${r.aiFailure}`}</p>}
+                  {r.aiRead && r.ai !== 'busy' && (
                     <p className={`text-xs font-medium ${r.needsCheck ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500'}`}>
-                      {r.needsCheck ? '⚠ AI not sure - check' : '✨ Suggested'}
-                      {r.subcategory && ` · ${r.subcategory}`}
+                      {!r.category ? "⚠ AI couldn't tell the category" : r.needsCheck ? '⚠ AI not sure - check' : '✨ Filled in by the photo AI'}
                     </p>
                   )}
-                  <Input value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Name (optional)" aria-label={`Name for item ${i + 1}`} />
+                  <Input value={r.name} onChange={(e) => updateByHand(r.key, { name: e.target.value }, ['name'])} placeholder="Name (optional)" aria-label={`Name for item ${i + 1}`} />
                   <Select value={r.pickupId ?? ''} onChange={(e) => update(r.key, { pickupId: e.target.value || null })} aria-label={`Customer for item ${i + 1}`}>
                     {pickupOptions(r.pickupId)}
                   </Select>
-                  <Select value={r.gender} onChange={(e) => update(r.key, { gender: e.target.value as ItemGender })} aria-label={`Women's or men's for item ${i + 1}`}>
+                  <Select value={r.gender} onChange={(e) => updateByHand(r.key, { gender: e.target.value as ItemGender }, ['gender'])} aria-label={`Women's or men's for item ${i + 1}`}>
                     {genderOptions}
                   </Select>
                   <Select
                     value={r.category}
-                    onChange={(e) => update(r.key, { category: e.target.value, subcategory: '', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null })}
+                    onChange={(e) => updateByHand(r.key, { category: e.target.value, subcategory: '', needsCheck: false, suggested: false, dupChecked: false, aiDuplicate: null }, ['category'])}
                     aria-label={`Category for item ${i + 1}`}
                     className={r.category && !r.needsCheck ? undefined : '!border-amber-400 !bg-amber-50 dark:!border-amber-700 dark:!bg-amber-950'}
                   >
                     {categoryOptions}
                   </Select>
+                  {hasSubs(r.category) && (
+                    <Select value={r.subcategory} onChange={(e) => updateByHand(r.key, { subcategory: e.target.value }, ['subcategory'])} aria-label={`Sub-category for item ${i + 1}`}>
+                      {subcategoryOptions(r.category)}
+                    </Select>
+                  )}
+                  <Input value={r.keywords} onChange={(e) => updateByHand(r.key, { keywords: e.target.value }, ['keywords'])} placeholder="Brand, colour, size (optional)" aria-label={`Brand, colour and size for item ${i + 1}`} />
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Qty</span>
                     <div className="flex-1">

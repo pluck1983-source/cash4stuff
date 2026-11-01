@@ -341,7 +341,6 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
             {voided.map((p) => (
               <li key={p.id} className="py-2">
                 <a href={routeHref({ name: 'pickup', id: p.id })} className="text-slate-500 line-through">
-                  {p.receiptNumber !== null && `No. ${p.receiptNumber} · `}
                   {p.reference} · {shortDate(p.date)} · {money(p.amountPaid)}
                 </a>{' '}
                 <VoidedNote voidedAt={p.voidedAt} reason={p.voidReason} />
@@ -396,7 +395,6 @@ function PickupCard({ state, pickup: p, inGroup = false, footer }: { state: AppS
             <div className="truncate text-xs text-slate-500">{[firstAddressLine(p.sellerAddress), p.sellerPostcode].filter(Boolean).join(', ')}</div>
           )}
           <div className={inGroup ? 'text-sm text-slate-700 dark:text-slate-300' : 'text-xs text-slate-500'}>
-            {p.receiptNumber !== null && `No. ${p.receiptNumber} · `}
             {shortDate(p.date)} · {p.handover === 'dropoff' ? 'drop-off · ' : ''}
             {kg(p.weightKg)} · cost {money(s.totalCost)}
           </div>

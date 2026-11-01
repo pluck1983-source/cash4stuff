@@ -45,6 +45,8 @@ export interface AiSuggestion {
   gender: ItemGender;
   category: string;
   subcategory: string;
+  /** Brand, colour and size where it could see them (missing on suggestions made before these were asked for) */
+  keywords?: string;
   /** False when it's guessing - the item gets flagged to check */
   sure: boolean;
 }

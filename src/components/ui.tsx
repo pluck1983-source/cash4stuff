@@ -60,7 +60,18 @@ export function Input(props: ComponentProps<'input'>) {
 }
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={fieldClass(props.className)} />;
+  return (
+    <select
+      {...props}
+      onChange={(e) => {
+        props.onChange?.(e);
+        // On touch screens iOS leaves the select focused after its picker closes,
+        // which can keep the page shifted (see lib/viewport.ts).
+        if (window.matchMedia?.('(pointer: coarse)').matches) e.currentTarget.blur();
+      }}
+      className={fieldClass(props.className)}
+    />
+  );
 }
 
 export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {

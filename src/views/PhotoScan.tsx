@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AppState, Item } from '../lib/types';
+import type { AiSuggestion, AppState, Item, ItemGender } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { categoryLabel, isHeld, UNCATEGORISED } from '../lib/calc';
+import { categoryLabel, GENDER_LABELS, GENDER_OPTIONS, isHeld, UNCATEGORISED } from '../lib/calc';
 import { loadPhotoBlob } from '../lib/photos';
 import { routeHref } from '../lib/router';
 import { unlockAiKey } from '../lib/aiKey';
 import { acceptSuggestion, suggestionDiffers } from '../lib/aiReview';
-import { Button, Empty, Field, PageHeader, Select } from '../components/ui';
+import { Button, Empty, Field, Input, PageHeader, Select } from '../components/ui';
 import { Photo } from '../components/Photo';
 
 /**
@@ -19,14 +19,19 @@ export function PhotoScanView({ state, actions }: { state: AppState; actions: Ap
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const stopRef = useRef(false);
+  // Items dealt with on this visit stay in the list (with what was done) until
+  // the page is left, so they don't vanish from under your finger.
+  const [handled, setHandled] = useState<Record<string, { done: string; suggestion: AiSuggestion }>>({});
+  const [amending, setAmending] = useState<string | null>(null);
   // Leaving the page stops the scan; what's done so far is kept.
   useEffect(() => () => void (stopRef.current = true), []);
 
   const inScope = (i: Item) =>
     !category || (category === UNCATEGORISED ? !state.settings.categories.includes(i.category) : i.category === category);
   const toScan = state.items.filter((i) => isHeld(i) && i.photoId && !i.aiScannedAt && inScope(i));
-  const review = state.items.filter((i) => i.aiSuggestion && isHeld(i) && inScope(i));
-  const sure = review.filter((i) => i.aiSuggestion?.sure);
+  const review = state.items.filter((i) => (i.aiSuggestion || handled[i.id]) && isHeld(i) && inScope(i));
+  const open = review.filter((i) => i.aiSuggestion && !handled[i.id]);
+  const sure = open.filter((i) => i.aiSuggestion?.sure);
   const keys = state.settings.aiKeys ?? [];
 
   async function scan() {
@@ -68,8 +73,21 @@ export function PhotoScanView({ state, actions }: { state: AppState; actions: Ap
     setProgress(null);
   }
 
-  const accept = (item: Item) => item.aiSuggestion && actions.patchItem(item.id, acceptSuggestion(item, item.aiSuggestion));
-  const keep = (item: Item) => actions.patchItem(item.id, { aiSuggestion: undefined });
+  const markDone = (item: Item, done: string) => item.aiSuggestion && setHandled((h) => ({ ...h, [item.id]: { done, suggestion: item.aiSuggestion! } }));
+  const accept = (item: Item) => {
+    if (!item.aiSuggestion) return;
+    markDone(item, '✓ Accepted');
+    actions.patchItem(item.id, acceptSuggestion(item, item.aiSuggestion));
+  };
+  const keep = (item: Item) => {
+    markDone(item, '✓ Kept as it was');
+    actions.patchItem(item.id, { aiSuggestion: undefined });
+  };
+  const amend = (item: Item, changes: Pick<Item, 'name' | 'gender' | 'category' | 'subcategory'>) => {
+    markDone(item, '✓ Amended');
+    actions.patchItem(item.id, { ...changes, aiSuggestion: undefined, needsCheck: false });
+    setAmending(null);
+  };
 
   return (
     <div className="mx-auto max-w-xl">
@@ -120,7 +138,7 @@ export function PhotoScanView({ state, actions }: { state: AppState; actions: Ap
         <>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold text-slate-900 dark:text-slate-50">
-              {review.length} to review{progress ? ' so far' : ''}
+              {open.length} to review{progress ? ' so far' : ''}
             </h2>
             {sure.length > 0 && (
               <Button
@@ -134,7 +152,8 @@ export function PhotoScanView({ state, actions }: { state: AppState; actions: Ap
           </div>
           <ul className="space-y-3">
             {review.map((item) => {
-              const s = item.aiSuggestion!;
+              const done = handled[item.id];
+              const s = item.aiSuggestion ?? done!.suggestion;
               const suggested = { ...item, ...acceptSuggestion(item, s) };
               return (
                 <li key={item.id} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
@@ -143,17 +162,27 @@ export function PhotoScanView({ state, actions }: { state: AppState; actions: Ap
                   </a>
                   <div className="min-w-0 flex-1 space-y-1 text-sm">
                     <div className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{item.sku}</div>
-                    <div className="text-slate-500 line-through">
-                      {[item.name, categoryLabel(item)].filter(Boolean).join(' · ') || 'No category'}
-                    </div>
-                    <div className="font-medium text-slate-900 dark:text-slate-50">{[suggested.name, categoryLabel(suggested)].filter(Boolean).join(' · ')}</div>
-                    {!s.sure && <div className="text-xs font-medium text-amber-700 dark:text-amber-400">⚠ AI not sure</div>}
-                    <div className="flex gap-2 pt-1">
-                      <Button variant="primary" onClick={() => accept(item)}>
-                        Accept
-                      </Button>
-                      <Button onClick={() => keep(item)}>Keep as is</Button>
-                    </div>
+                    {done ? (
+                      <>
+                        <div className="font-medium text-slate-900 dark:text-slate-50">{[item.name, categoryLabel(item)].filter(Boolean).join(' · ') || 'No category'}</div>
+                        <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{done.done}</div>
+                      </>
+                    ) : amending === item.id ? (
+                      <AmendForm state={state} start={suggested} onSave={(changes) => amend(item, changes)} onCancel={() => setAmending(null)} />
+                    ) : (
+                      <>
+                        <div className="text-slate-500 line-through">{[item.name, categoryLabel(item)].filter(Boolean).join(' · ') || 'No category'}</div>
+                        <div className="font-medium text-slate-900 dark:text-slate-50">{[suggested.name, categoryLabel(suggested)].filter(Boolean).join(' · ')}</div>
+                        {!s.sure && <div className="text-xs font-medium text-amber-700 dark:text-amber-400">⚠ AI not sure</div>}
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Button variant="primary" onClick={() => accept(item)}>
+                            Accept
+                          </Button>
+                          <Button onClick={() => setAmending(item.id)}>Amend</Button>
+                          <Button onClick={() => keep(item)}>Keep as is</Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </li>
               );
@@ -161,6 +190,55 @@ export function PhotoScanView({ state, actions }: { state: AppState; actions: Ap
           </ul>
         </>
       )}
+    </div>
+  );
+}
+
+/** Starts from the AI's answer so only what it got wrong needs changing */
+function AmendForm({
+  state,
+  start,
+  onSave,
+  onCancel,
+}: {
+  state: AppState;
+  start: Pick<Item, 'name' | 'gender' | 'category' | 'subcategory'>;
+  onSave: (changes: Pick<Item, 'name' | 'gender' | 'category' | 'subcategory'>) => void;
+  onCancel: () => void;
+}) {
+  const [d, setD] = useState(start);
+  const subs = state.settings.subcategories[d.category] ?? [];
+  return (
+    <div className="space-y-1.5">
+      <Input value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="Name" aria-label="Name" />
+      <Select value={d.gender} onChange={(e) => setD({ ...d, gender: e.target.value as ItemGender })} aria-label="Women's or men's">
+        <option value="">Women's/men's?</option>
+        {GENDER_OPTIONS.map((g) => (
+          <option key={g} value={g}>
+            {GENDER_LABELS[g]}
+          </option>
+        ))}
+      </Select>
+      <Select value={d.category} onChange={(e) => setD({ ...d, category: e.target.value, subcategory: '' })} aria-label="Category">
+        <option value="">Category?</option>
+        {state.settings.categories.map((c) => (
+          <option key={c}>{c}</option>
+        ))}
+      </Select>
+      {subs.length > 0 && (
+        <Select value={d.subcategory} onChange={(e) => setD({ ...d, subcategory: e.target.value })} aria-label="Sub-category">
+          <option value="">Sub-category?</option>
+          {subs.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </Select>
+      )}
+      <div className="flex gap-2 pt-1">
+        <Button variant="primary" onClick={() => onSave({ ...d, name: d.name.trim() })}>
+          Save
+        </Button>
+        <Button onClick={onCancel}>Cancel</Button>
+      </div>
     </div>
   );
 }

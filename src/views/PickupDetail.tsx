@@ -17,8 +17,8 @@ import { mapsUrl } from '../lib/diary';
 import { MergeCustomers } from '../components/MergeCustomers';
 
 /** The filters that make sense inside one customer's items */
-type ItemListFilter = Pick<ItemFilter, 'text' | 'category' | 'status' | 'unpriced'>;
-const NO_LIST_FILTER: ItemListFilter = { text: '', category: '', status: '', unpriced: false };
+type ItemListFilter = Pick<ItemFilter, 'text' | 'category' | 'subcategory' | 'status' | 'unpriced'>;
+const NO_LIST_FILTER: ItemListFilter = { text: '', category: '', subcategory: '', status: '', unpriced: false };
 const LIST_FILTER_KEY = 'cash4stuff-pickup-filter';
 
 // Kept for the session so opening an item to price it and coming back keeps the list as it was.
@@ -69,7 +69,8 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
   const filterOf = (f: ItemListFilter) => filterItems({ ...state, items }, { ...EMPTY_FILTER, ...f });
   const shown = filterOf(listFilter);
   const unpricedCount = filterOf({ ...listFilter, unpriced: true }).length;
-  const filtered = listFilter.text.trim() !== '' || listFilter.category !== '' || listFilter.status !== '' || listFilter.unpriced;
+  const filtered = listFilter.text.trim() !== '' || listFilter.category !== '' || listFilter.subcategory !== '' || listFilter.status !== '' || listFilter.unpriced;
+  const listSubs = state.settings.subcategories[listFilter.category] ?? [];
   const uncategorisedCount = items.filter((i) => !state.settings.categories.includes(i.category)).length;
   const linkedExpenses = state.expenses.filter((e) => e.pickupId === pickup.id);
 
@@ -187,13 +188,21 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
             <div className="mb-3 space-y-2">
               <Input type="search" value={listFilter.text} onChange={(e) => setListFilter({ text: e.target.value })} placeholder="Search SKU, name, keywords…" aria-label="Search items" />
               <div className="flex flex-wrap gap-2">
-                <Select value={listFilter.category} onChange={(e) => setListFilter({ category: e.target.value })} aria-label="Category" className="min-w-0 flex-1 basis-36">
+                <Select value={listFilter.category} onChange={(e) => setListFilter({ category: e.target.value, subcategory: '' })} aria-label="Category" className="min-w-0 flex-1 basis-36">
                   <option value="">All categories</option>
                   {state.settings.categories.map((c) => (
                     <option key={c}>{c}</option>
                   ))}
                   {(uncategorisedCount > 0 || listFilter.category === UNCATEGORISED) && <option value={UNCATEGORISED}>Uncategorised ({uncategorisedCount})</option>}
                 </Select>
+                {listSubs.length > 0 && (
+                  <Select value={listFilter.subcategory} onChange={(e) => setListFilter({ subcategory: e.target.value })} aria-label="Sub-category" className="min-w-0 flex-1 basis-36">
+                    <option value="">All {listFilter.category.toLowerCase()}</option>
+                    {listSubs.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </Select>
+                )}
                 <Select value={listFilter.status} onChange={(e) => setListFilter({ status: e.target.value as ItemListFilter['status'] })} aria-label="Status" className="min-w-0 flex-1 basis-36">
                   <option value="">Any status</option>
                   <option value="held">Unsold</option>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Settings } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { forgetUnlockedKey, lockAiKey } from '../lib/aiKey';
+import { aiKeyUnlocked, forgetUnlockedKey, lockAiKey, unlockAiKey } from '../lib/aiKey';
 import { routeHref } from '../lib/router';
 import { Button, Card, Field, Input } from './ui';
 
@@ -15,6 +15,8 @@ export function PhotoAiSettings({ settings, actions }: { settings: Settings; act
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [, refresh] = useState(0);
+  const unlockedHere = aiKeyUnlocked(keys);
 
   async function save() {
     setBusy(true);
@@ -36,7 +38,8 @@ export function PhotoAiSettings({ settings, actions }: { settings: Settings; act
       <p className="mb-3 text-sm text-slate-500">
         Lets "Add from photos" suggest the category, women's/men's and a name for each photo, flag the ones it isn't sure about, and spot items already in stock
         under a different photo. Uses an Anthropic API key (console.anthropic.com, pay as you go - well under 1p a photo). The key is locked with Face ID and
-        unlocks on your other devices signed in to the same Apple ID; others sharing the data can't read it and add their own.
+        unlocks on your other devices signed in to the same Apple ID; others sharing the data can't read it and add their own. After one Face ID, a device stays
+        unlocked so photos are read automatically on every upload.
       </p>
       {keys.length > 0 && !adding ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -65,6 +68,33 @@ export function PhotoAiSettings({ settings, actions }: { settings: Settings; act
           <Button variant="primary" className="w-full" disabled={busy || !key.trim().startsWith('sk-ant-')} onClick={() => void save()}>
             {busy ? 'Saving…' : 'Save with Face ID'}
           </Button>
+        </div>
+      )}
+      {keys.length > 0 && !adding && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-sm dark:border-slate-800">
+          <span className="text-slate-700 dark:text-slate-200">{unlockedHere ? '✓ Unlocked on this device - runs on every upload' : '🔒 Locked on this device'}</span>
+          {unlockedHere ? (
+            <Button
+              onClick={() => {
+                forgetUnlockedKey();
+                refresh((n) => n + 1);
+              }}
+            >
+              Lock this device
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={() =>
+                void unlockAiKey(keys)
+                  .then(() => setMessage('✓ Unlocked - photos will be read automatically on this device'))
+                  .catch((e: unknown) => setMessage(e instanceof Error ? e.message : 'Face ID failed'))
+                  .finally(() => refresh((n) => n + 1))
+              }
+            >
+              Unlock with Face ID
+            </Button>
+          )}
         </div>
       )}
       {message && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{message}</p>}

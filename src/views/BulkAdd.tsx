@@ -112,7 +112,8 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
     }
     setProgress(null);
     // Once Face ID has unlocked the key this session, new photos are checked straight away.
-    if ((state.settings.aiKeys?.length ?? 0) > 0 && aiKeyUnlocked() && !aiRunningRef.current) void runAi(added);
+    // Kept unlocked on this device after the first Face ID, so every upload is read straight away.
+    if (aiKeyUnlocked(state.settings.aiKeys ?? []) && !aiRunningRef.current) void runAi(added);
     if (failed.length) setError(`Couldn't use ${failed.length} photo${failed.length === 1 ? '' : 's'}: ${failed.join(', ')}`);
   }
 
@@ -404,13 +405,13 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                       ? `✨ Reading photos… ${aiProgress.done} of ${aiProgress.total}`
                       : '✨ Checking for duplicates…'
                     : unread > 0
-                      ? `${aiKeyUnlocked() ? '✨' : '🔒'} Fill in ${unread} photo${unread === 1 ? '' : 's'} with the photo AI${aiKeyUnlocked() ? '' : ' (Face ID)'}`
+                      ? `${aiKeyUnlocked(state.settings.aiKeys ?? []) ? '✨' : '🔒'} Fill in ${unread} photo${unread === 1 ? '' : 's'} with the photo AI${aiKeyUnlocked(state.settings.aiKeys ?? []) ? '' : ' (Face ID)'}`
                       : `✨ Check ${unchecked} for duplicates in stock`}
                 </Button>
             )}
-            {aiReady && !aiRunning && unread > 0 && !aiKeyUnlocked() && (
+            {aiReady && !aiRunning && unread > 0 && !aiKeyUnlocked(state.settings.aiKeys ?? []) && (
               <p className="text-xs text-slate-500">
-                The photo AI needs Face ID once each time the app is opened - tap the button above. After that, photos you add are filled in automatically.
+                The photo AI needs Face ID once on this device - tap the button above. After that it stays unlocked and every upload is filled in automatically.
               </p>
             )}
             {!aiReady && (

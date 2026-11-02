@@ -6,11 +6,48 @@ import type { LockedAiKey } from './types';
  * "prf" extension), and the passkey asks for a face or fingerprint every
  * time. The locked copies live in the synced settings: passkeys sync through
  * iCloud Keychain, so the person who saved a key can unlock it on all their
- * devices, while anyone else sharing the data can't. Once unlocked, the key
- * stays in memory until the app is closed.
+ * devices, while anyone else sharing the data can't.
+ *
+ * Once unlocked with Face ID, the key is also kept on this device (local
+ * storage, never synced) so the photo AI runs on every upload without asking
+ * again - David's choice (2026-11-02). "Lock this device" in Settings forgets it.
  */
 
+const DEVICE_KEY = 'cash4stuff-ai-key-device';
+
+/** The unlocked key kept on this device, with which saved (locked) key it came from */
+interface DeviceKey {
+  cipher: string;
+  apiKey: string;
+}
+
+function readDeviceKey(): DeviceKey | null {
+  try {
+    const raw = localStorage.getItem(DEVICE_KEY);
+    return raw ? (JSON.parse(raw) as DeviceKey) : null;
+  } catch {
+    return null;
+  }
+}
+
+function keepOnDevice(cipher: string, apiKey: string) {
+  try {
+    localStorage.setItem(DEVICE_KEY, JSON.stringify({ cipher, apiKey } satisfies DeviceKey));
+  } catch {
+    // Private browsing etc: it stays unlocked until the app closes instead.
+  }
+}
+
 let unlocked: string | null = null;
+
+/** The key kept on this device, if it still matches one of the saved keys (removed keys don't linger) */
+function deviceKeyFor(keys: LockedAiKey[]): string | null {
+  const kept = readDeviceKey();
+  if (!kept) return null;
+  if (keys.some((k) => k.cipher === kept.cipher)) return kept.apiKey;
+  forgetUnlockedKey();
+  return null;
+}
 
 const toB64 = (bytes: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
 const fromB64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
@@ -21,13 +58,20 @@ const asBuffer = (secret: BufferSource): ArrayBuffer => (secret instanceof Array
 const NOT_SUPPORTED = "This device can't lock the key with Face ID (it needs iOS 18 or newer, or a recent Chrome), so it wasn't saved.";
 const NOT_YOURS = 'A key saved from another Apple ID needs your own key adding in Settings > Photo AI.';
 
-/** Unlocked already since the app opened, so the AI can run without asking for Face ID */
-export function aiKeyUnlocked(): boolean {
-  return unlocked !== null;
+/** Unlocked already (this app session or kept on this device), so the AI can run without asking for Face ID */
+export function aiKeyUnlocked(keys: LockedAiKey[]): boolean {
+  if (keys.length === 0) return false;
+  return unlocked !== null || deviceKeyFor(keys) !== null;
 }
 
+/** Locks this device again: the next run asks for Face ID */
 export function forgetUnlockedKey() {
   unlocked = null;
+  try {
+    localStorage.removeItem(DEVICE_KEY);
+  } catch {
+    // Nothing kept.
+  }
 }
 
 /** Asks for Face ID once; whichever saved key belongs to this person's passkeys is used */
@@ -94,15 +138,19 @@ export async function lockAiKey(apiKey: string): Promise<LockedAiKey> {
   const secret = first ? asBuffer(first) : (await passkeySecret([partial])).secret;
   const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aesKey(secret, 'encrypt'), new TextEncoder().encode(apiKey.trim()));
   unlocked = apiKey.trim();
+  keepOnDevice(toB64(cipher), unlocked);
   return { ...partial, cipher: toB64(cipher) };
 }
 
 /** The key, asking for Face ID the first time after the app opens. Null when none is saved. */
 export async function unlockAiKey(keys: LockedAiKey[]): Promise<string | null> {
-  if (unlocked) return unlocked;
   if (keys.length === 0) return null;
+  const kept = deviceKeyFor(keys);
+  if (kept) return kept;
+  if (unlocked) return unlocked;
   const { key, secret } = await passkeySecret(keys);
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(key.iv) }, await aesKey(secret, 'decrypt'), fromB64(key.cipher));
   unlocked = new TextDecoder().decode(plain);
+  keepOnDevice(key.cipher, unlocked);
   return unlocked;
 }

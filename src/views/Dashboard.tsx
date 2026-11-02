@@ -4,6 +4,7 @@ import type { AppState } from '../lib/types';
 import {
   PERIOD_LABELS,
   expensesByCategory,
+  isHeld,
   listValue,
   locationLabel,
   monthlySeries,
@@ -325,16 +326,15 @@ function RecentSales({ state, limit = 6 }: { state: AppState; limit?: number }) 
 }
 
 function Attention({ state }: { state: AppState }) {
-  const held = state.items.filter((i) => i.status === 'in_stock' || i.status === 'listed');
-  const unpriced = held.filter((i) => i.listPrice === null).length;
-  const unlisted = held.filter((i) => i.status === 'in_stock').length;
+  const held = state.items.filter(isHeld);
+  // Priced = listed, so "no listing price" also covers "not listed yet".
+  const unpriced = held.filter((i) => !i.listPrice).length;
   const noPhoto = held.filter((i) => !i.photoId).length;
   const noLocation = held.filter((i) => !locationLabel(i.location)).length;
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
   const stale = held.filter((i) => i.createdAt < ninetyDaysAgo).length;
   const rows = [
-    { n: unlisted, text: 'in stock but not listed yet' },
-    { n: unpriced, text: 'with no listing price' },
+    { n: unpriced, text: 'with no price (not listed yet)' },
     { n: stale, text: 'unsold after 90+ days' },
     { n: noPhoto, text: 'with no photo' },
     { n: noLocation, text: 'with no storage location' },

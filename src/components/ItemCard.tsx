@@ -1,6 +1,6 @@
 import type { Item, Pickup } from '../lib/types';
-import { categoryLabel, locationLabel, needsCheck } from '../lib/calc';
-import { money, shortDate } from '../lib/format';
+import { categoryLabel, locationLabel, needsCheck, effectiveStatus } from '../lib/calc';
+import { money } from '../lib/format';
 import { routeHref } from '../lib/router';
 import { Photo } from './Photo';
 import { StatusBadge } from './ui';
@@ -43,8 +43,7 @@ export function ItemCard({ item, pickup }: { item: Item; pickup?: Pickup }) {
             {locationLabel(item.location) || 'No location'}
           </span>
           <span className="flex shrink-0 items-center gap-1">
-            {item.status === 'listed' && item.listedDate && <span className="text-xs text-slate-500">{shortDate(item.listedDate)}</span>}
-            <StatusBadge status={item.status} />
+            <StatusBadge status={effectiveStatus(item)} />
           </span>
         </div>
       </div>

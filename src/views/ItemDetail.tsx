@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AppState, Item } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
-import { itemCostMap, listValue, originalListPrice, pence } from '../lib/calc';
+import { itemCostMap, listValue, originalListPrice, pence, effectiveStatus } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { goBack, navigate, routeHref } from '../lib/router';
 import { showToast } from '../lib/toast';
@@ -143,8 +143,7 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
       />
       <p className="-mt-3 mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
         {item.sku && <span className="rounded bg-slate-900 px-1.5 py-0.5 font-mono text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-900">{item.sku}</span>}
-        <StatusBadge status={item.status} />
-        {item.status === 'listed' && item.listedDate && <span>since {shortDate(item.listedDate)}</span>}
+        <StatusBadge status={effectiveStatus(item)} />
         {pickup && (
           <a className="underline" href={routeHref({ name: 'pickup', id: pickup.id })}>
             {pickup.reference}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatedPickupCost, customerStats, filterItems, EMPTY_FILTER, UNCATEGORISED, itemCostMap, periodFor, pickupStats, roundWeight, suggestNewGroup, totals } from './calc';
+import { calculatedPickupCost, customerStats, effectiveStatus, filterItems, EMPTY_FILTER, UNCATEGORISED, itemCostMap, periodFor, pickupStats, roundWeight, suggestNewGroup, totals } from './calc';
 import { DEFAULT_SETTINGS, emptyState } from './storage';
 import type { AppState, Item, Pickup } from './types';
 import { purchaseCost } from './audit';
@@ -255,5 +255,22 @@ describe('filterItems', () => {
     expect(ids({ category: UNCATEGORISED })).toEqual(['a']);
     const s = stateWith({ items: [item({ id: 'x', category: '' }), item({ id: 'y', category: 'Shoes' })] });
     expect(filterItems(s, { ...EMPTY_FILTER, category: UNCATEGORISED }).map((i) => i.id)).toEqual(['x']);
+  });
+});
+
+describe('listed = priced', () => {
+  it('counts every unsold priced item as listed, whatever its stored status', () => {
+    const items = [
+      item({ id: 'a', status: 'in_stock', listPrice: 10 }),
+      item({ id: 'b', status: 'listed', listPrice: null }),
+      item({ id: 'c', status: 'listed', listPrice: 5, quantity: 2 }),
+      item({ id: 'd', status: 'sold', listPrice: 8, soldPrice: 8, soldDate: '2026-01-02' }),
+      item({ id: 'e', status: 'written_off', listPrice: 8 }),
+    ];
+    const s = stateWith({ items });
+    expect(totals(s, periodFor('all', new Date('2026-02-01'))).listedItems).toBe(3);
+    expect(items.map(effectiveStatus)).toEqual(['listed', 'in_stock', 'listed', 'sold', 'written_off']);
+    expect(filterItems(s, { ...EMPTY_FILTER, status: 'listed' }).map((i) => i.id)).toEqual(['a', 'c']);
+    expect(filterItems(s, { ...EMPTY_FILTER, status: 'in_stock' }).map((i) => i.id)).toEqual(['b']);
   });
 });

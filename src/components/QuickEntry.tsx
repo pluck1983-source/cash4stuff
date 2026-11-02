@@ -153,8 +153,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
         <Input value={d.rack} onChange={(e) => set({ rack: e.target.value })} placeholder="Rack" aria-label="Rack" />
         <Input value={d.box} onChange={(e) => set({ box: e.target.value })} placeholder="Box" aria-label="Box" />
         <Select value={d.status} onChange={(e) => set({ status: e.target.value as ItemStatus })} aria-label="Status">
-          <option value="in_stock">Not listed</option>
-          <option value="listed">Listed online</option>
+          <option value="in_stock">Not sold</option>
           <option value="sold">Already sold</option>
         </Select>
         {d.status === 'sold' && (

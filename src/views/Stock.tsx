@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppState, Item } from '../lib/types';
-import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, UNCATEGORISED, categoryLabel, filterItems, locationLabel, listValue, priceDrop, units, type ItemFilter } from '../lib/calc';
+import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, UNCATEGORISED, categoryLabel, effectiveStatus, filterItems, locationLabel, listValue, priceDrop, units, type ItemFilter } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { groupBySeller, groupLabel } from '../lib/sellers';
 import { routeHref, useIsDesktop } from '../lib/router';
@@ -149,10 +149,10 @@ export function StockView({ state }: { state: AppState }) {
       {filtersOpen && (
         <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4 2xl:grid-cols-8">
           <Select value={filter.status} onChange={(e) => setFilter({ status: e.target.value as ItemFilter['status'] })} aria-label="Status">
-            <option value="held">Unsold (in stock + listed)</option>
+            <option value="held">Unsold (all)</option>
             <option value="">Any status</option>
-            <option value="in_stock">In stock, not listed</option>
-            <option value="listed">Listed</option>
+            <option value="in_stock">No price (not listed)</option>
+            <option value="listed">Priced (listed)</option>
             <option value="sold">Sold</option>
             <option value="written_off">Written off</option>
           </Select>
@@ -272,7 +272,7 @@ export function StockView({ state }: { state: AppState }) {
                     <td className="p-2 text-slate-600 dark:text-slate-300">{p?.reference ?? '-'}</td>
                     <td className="p-2 text-slate-600 dark:text-slate-300">{locationLabel(i.location) || '-'}</td>
                     <td className="p-2">
-                      <StatusBadge status={i.status} />
+                      <StatusBadge status={effectiveStatus(i)} />
                     </td>
                     <td className="p-2 text-right tabular-nums">
                       {money(i.listPrice)}

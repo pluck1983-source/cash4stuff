@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react';
 import type { AppState, ItemGender, ItemStatus, StorageLocation } from '../lib/types';
 import { GENDER_LABELS, GENDER_OPTIONS } from '../lib/calc';
 import { parseNumber } from '../lib/format';
-import { todayIso } from '../lib/storage';
 import { customerChoices, type CustomerChoice } from '../lib/sellers';
 import { duplicateWarning, itemWithPhoto } from '../lib/duplicates';
 import { Chips, Field, Input, Select } from './ui';
@@ -178,20 +177,6 @@ export function ItemEditor({
 
       {draft.status !== 'sold' && (
         <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-          <label className="flex items-center gap-3 text-sm font-medium text-slate-800 dark:text-slate-100">
-            <input
-              type="checkbox"
-              className="h-5 w-5 accent-brand-600"
-              checked={draft.status === 'listed'}
-              onChange={(e) => set(e.target.checked ? { status: 'listed', listedDate: draft.listedDate || todayIso() } : { status: 'in_stock', listedDate: '' })}
-            />
-            Listed online
-          </label>
-          {draft.status === 'listed' && (
-            <Field label="Date listed">
-              <Input type="date" value={draft.listedDate} onChange={(e) => set({ listedDate: e.target.value })} />
-            </Field>
-          )}
           <label className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
             <input
               type="checkbox"

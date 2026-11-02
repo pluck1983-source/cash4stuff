@@ -34,6 +34,16 @@ export function isHeld(item: Item): boolean {
   return item.status === 'in_stock' || item.status === 'listed';
 }
 
+/** An unsold item counts as listed for sale whenever it has a price; there's no separate "listed" tick any more. */
+export function isListed(item: Item): boolean {
+  return isHeld(item) && !!item.listPrice;
+}
+
+/** Status to show and filter on: unsold items are "listed" when priced, otherwise "in stock". */
+export function effectiveStatus(item: Item): ItemStatus {
+  return isHeld(item) ? (isListed(item) ? 'listed' : 'in_stock') : item.status;
+}
+
 export interface PickupStats {
   pickup: Pickup;
   stockCost: number;
@@ -223,7 +233,7 @@ export function totals(state: AppState, period: Period = ALL_TIME): Totals {
     soldAgainstListValue,
     soldVsList: soldListValue > 0 ? soldAgainstListValue / soldListValue : null,
     heldItems: units(held),
-    listedItems: units(held.filter((i) => i.status === 'listed')),
+    listedItems: units(held.filter(isListed)),
     unpricedItems: units(held.filter((i) => i.listPrice === null)),
     stockListValue: pence(sum(held.map(listValue))),
     stockBookCost: pence(sum(held.map((i) => perItemCost.get(i.id) ?? 0))),
@@ -388,7 +398,7 @@ export function filterItems(state: AppState, filter: ItemFilter): Item[] {
     if (filter.category === UNCATEGORISED ? state.settings.categories.includes(i.category) : filter.category && i.category !== filter.category) return false;
     if (filter.category && filter.subcategory && i.subcategory !== filter.subcategory) return false;
     if (filter.gender && i.gender !== filter.gender) return false;
-    if (filter.status === 'held' ? !isHeld(i) : filter.status && i.status !== filter.status) return false;
+    if (filter.status === 'held' ? !isHeld(i) : filter.status && effectiveStatus(i) !== filter.status) return false;
     if (customer && (!i.pickupId || groups.get(i.pickupId) !== customer)) return false;
     if (filter.area && i.location.area !== filter.area) return false;
     if (filter.rack && i.location.rack.toLowerCase() !== filter.rack.trim().toLowerCase()) return false;

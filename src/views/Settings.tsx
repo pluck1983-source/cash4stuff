@@ -35,6 +35,9 @@ export function SettingsView({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader title="Settings" />
+      <p className="-mt-2 text-xs text-slate-500">
+        App version: {new Date(__BUILD_TIME__).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+      </p>
 
       <Card title="Buying price">
         <div className="grid gap-3 sm:grid-cols-3">

@@ -397,21 +397,25 @@ export function BulkAddView({ state, actions, pickupId }: { state: AppState; act
                 </Button>
               </div>
             )}
-            {aiReady ? (
-              (aiRunning || unread > 0 || unchecked > 0) && (
+            {aiReady && (aiRunning || unread > 0 || unchecked > 0) && (
                 <Button variant="primary" className="w-full" disabled={aiRunning || saving} onClick={() => void runAi()}>
                   {aiRunning
                     ? aiProgress
                       ? `✨ Reading photos… ${aiProgress.done} of ${aiProgress.total}`
                       : '✨ Checking for duplicates…'
                     : unread > 0
-                      ? `✨ Fill in ${unread} photo${unread === 1 ? '' : 's'} with the photo AI`
+                      ? `${aiKeyUnlocked() ? '✨' : '🔒'} Fill in ${unread} photo${unread === 1 ? '' : 's'} with the photo AI${aiKeyUnlocked() ? '' : ' (Face ID)'}`
                       : `✨ Check ${unchecked} for duplicates in stock`}
                 </Button>
-              )
-            ) : (
+            )}
+            {aiReady && !aiRunning && unread > 0 && !aiKeyUnlocked() && (
+              <p className="text-xs text-slate-500">
+                The photo AI needs Face ID once each time the app is opened - tap the button above. After that, photos you add are filled in automatically.
+              </p>
+            )}
+            {!aiReady && (
               <p className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                The photo AI isn't set up on this device, so nothing is filled in for you. <a className="underline" href={routeHref({ name: 'settings' })}>Set it up in Settings</a>.
+                The photo AI isn't set up, so nothing is filled in for you. <a className="underline" href={routeHref({ name: 'settings' })}>Set it up in Settings</a>.
               </p>
             )}
             {aiSummary && <p className="text-sm text-slate-600 dark:text-slate-300">{aiSummary}</p>}

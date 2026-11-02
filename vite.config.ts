@@ -36,6 +36,8 @@ function copyOcrFiles(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   base,
+  // Shown in Settings, so it's easy to tell whether a phone has the latest version.
+  define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
   plugins: [
     react(),
     copyOcrFiles(),

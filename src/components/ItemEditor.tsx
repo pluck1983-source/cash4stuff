@@ -4,7 +4,7 @@ import { GENDER_LABELS, GENDER_OPTIONS } from '../lib/calc';
 import { parseNumber } from '../lib/format';
 import { customerChoices, type CustomerChoice } from '../lib/sellers';
 import { duplicateWarning, itemWithPhoto } from '../lib/duplicates';
-import { Chips, Field, Input, Select } from './ui';
+import { Button, Chips, Field, Input, Select } from './ui';
 import { Photo, PhotoPicker } from './Photo';
 import { ZoomableImg } from './Lightbox';
 
@@ -175,18 +175,28 @@ export function ItemEditor({
         </Field>
       </div>
 
-      {draft.status !== 'sold' && (
-        <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-          <label className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              className="h-5 w-5 accent-red-600"
-              checked={draft.status === 'written_off'}
-              onChange={(e) => set({ status: e.target.checked ? 'written_off' : 'in_stock', listedDate: '' })}
-            />
-            Written off / binned
-          </label>
+      {/* A button with a confirm rather than a tick box: the tick sat where "Listed online" used
+          to be, so a habitual tap wrote items off. Only a person can write off (never the photo AI). */}
+      {draft.status === 'written_off' ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+          <span className="font-medium">Written off / binned</span>
+          <Button onClick={() => set({ status: 'in_stock', listedDate: '' })}>Undo write-off</Button>
         </div>
+      ) : (
+        // New items can't be written off - there'd be no point adding them.
+        itemId && draft.status !== 'sold' && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="text-sm text-red-700 underline dark:text-red-400"
+              onClick={() => {
+                if (window.confirm('Write this item off (binned / not for sale)? It leaves your stock. You can undo it here.')) set({ status: 'written_off', listedDate: '' });
+              }}
+            >
+              Write off this item…
+            </button>
+          </div>
+        )
       )}
 
       <Field label="Notes">

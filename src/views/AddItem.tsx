@@ -75,7 +75,9 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
       localStorage.setItem(LAST_KEY, JSON.stringify({ category: draft.category, subcategory: draft.subcategory, gender: draft.gender, location: draft.location } satisfies LastDefaults));
       if (another) {
         setAdded((a) => [{ name: draft.name.trim() || draft.category, price: listPrice, quantity: draft.quantity }, ...a]);
-        setDraft({ ...freshDraft(state, draft.pickupId), status: draft.status, listedDate: draft.listedDate });
+        // A write-off is decided item by item, so it never carries over to the next one.
+        const status = draft.status === 'written_off' ? 'in_stock' : draft.status;
+        setDraft({ ...freshDraft(state, draft.pickupId), status, listedDate: draft.listedDate });
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         navigate(draft.pickupId ? { name: 'pickup', id: draft.pickupId } : { name: 'stock' });

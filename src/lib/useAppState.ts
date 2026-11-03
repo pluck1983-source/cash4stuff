@@ -8,6 +8,10 @@ import { splitSale, type Sale } from './quantity';
 import { mergeCustomers, setResolved } from './sellers';
 import { loadState, newId, saveState, todayIso } from './storage';
 
+/** Item fields the photo AI may never change - write-offs and sales are a person's decision */
+export const AI_FORBIDDEN = ['status', 'soldPrice', 'soldDate', 'salesChannel', 'saleCosts', 'listPrice', 'quantity'] as const;
+type AiForbidden = (typeof AI_FORBIDDEN)[number];
+
 type NewPickup = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber' | 'resolvedAt'>;
 type NewItem = Omit<Item, 'id' | 'sku' | 'quantity' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'> & { sku?: string; quantity?: number };
 type NewEmployment = Omit<Employment, 'id' | 'updatedAt'>;
@@ -200,12 +204,18 @@ export function useAppState() {
         const id = newId();
         setState((s) => ({ ...s, items: splitSale(s.items, item, sale, sold, now, id) }));
       },
-      /** Changes a few fields on the latest copy of an item, so background work can't undo other edits */
-      patchItem(id: string, patch: Partial<Item>) {
+      /**
+       * Changes a few fields on the latest copy of an item, so background work can't undo other edits.
+       * Used by the photo AI, so it can't change status or sale details: write-offs and sales are only
+       * ever made by a person on the item page.
+       */
+      patchItem(id: string, patch: Omit<Partial<Item>, AiForbidden>) {
         setState((s) => {
           const previous = s.items.find((i) => i.id === id);
           if (!previous) return s;
-          const next = { ...previous, ...patch, updatedAt: stamp() };
+          // Belt and braces for the type above: drop status/sale fields if anything slips through.
+          const safe = Object.fromEntries(Object.entries(patch).filter(([k]) => !(AI_FORBIDDEN as readonly string[]).includes(k)));
+          const next = { ...previous, ...safe, updatedAt: stamp() };
           next.sku = skuForNewCategory(next.sku, previous.category, next.category);
           return { ...s, items: s.items.map((i) => (i.id === id ? next : i)) };
         });

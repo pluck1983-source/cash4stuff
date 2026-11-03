@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { acceptSuggestion, fillFromSuggestion, suggestionDiffers } from './aiReview';
+import { AI_FORBIDDEN } from './useAppState';
 
 const item = { category: 'Shoes', subcategory: '', gender: 'womens' as const, name: '' };
 const jacket = { name: 'Denim jacket', gender: 'womens' as const, category: 'Coats & jackets', subcategory: 'Jackets', sure: true };
@@ -46,5 +47,13 @@ describe('bulk add photo AI', () => {
   it('flags unsure or uncategorised answers', () => {
     expect(fillFromSuggestion(blank, { ...cardigan, sure: false }, subs).needsCheck).toBe(true);
     expect(fillFromSuggestion(blank, { ...cardigan, category: '', subcategory: '' }, subs)).toMatchObject({ category: '', needsCheck: true, suggested: false });
+  });
+});
+
+describe('photo AI never writes off or sells', () => {
+  it('only touches description fields', () => {
+    const s = { name: 'Rag', gender: 'womens' as const, category: 'Tops', subcategory: '', keywords: 'stained', sure: false };
+    const changes = [acceptSuggestion({ category: '', subcategory: '', gender: '', name: '' }, s), fillFromSuggestion({ name: '', gender: '', category: '', subcategory: '', keywords: '', manual: {} }, s, {})];
+    for (const c of changes) for (const k of AI_FORBIDDEN) expect(c).not.toHaveProperty(k);
   });
 });

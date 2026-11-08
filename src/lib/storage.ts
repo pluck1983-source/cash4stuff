@@ -1,6 +1,6 @@
 import { GENDER_LABELS } from './calc';
 import { purchaseCost } from './audit';
-import type { AiSuggestion, AppState, Audited, Booking, EditRecord, Employment, Expense, RecurringCost, Item, OtherIncome, PaymentMethod, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
+import type { AiSuggestion, AppState, Audited, Booking, EditRecord, Employment, Expense, InsurancePolicy, RecurringCost, Item, OtherIncome, StorageUnit, PaymentMethod, Pickup, PricePoint, Settings, TaxExpenseBox } from './types';
 
 const STORAGE_KEY = 'cash4stuff-state-v1';
 
@@ -94,6 +94,8 @@ export function emptyState(): AppState {
     employments: [],
     recurring: [],
     bookings: [],
+    storageUnits: [],
+    policies: [],
     tombstones: {},
     deletedPhotoIds: [],
   };
@@ -361,6 +363,44 @@ export function normaliseState(raw: unknown): AppState {
     createdAt: str(b.createdAt, now),
     updatedAt: str(b.updatedAt, EPOCH),
   }));
+  const storageUnits: StorageUnit[] = records(r.storageUnits).map((u) => ({
+    id: str(u.id) || newId(),
+    company: str(u.company),
+    site: str(u.site),
+    address: str(u.address),
+    postcode: str(u.postcode),
+    unitNumber: str(u.unitNumber),
+    unitSize: str(u.unitSize),
+    accountRef: str(u.accountRef),
+    phone: str(u.phone),
+    email: str(u.email),
+    noticePeriod: str(u.noticePeriod),
+    accessHours: str(u.accessHours),
+    area: str(u.area),
+    startDate: str(u.startDate, now.slice(0, 10)),
+    endDate: typeof u.endDate === 'string' && u.endDate ? u.endDate : null,
+    recurringId: typeof u.recurringId === 'string' && u.recurringId ? u.recurringId : null,
+    notes: str(u.notes),
+    updatedAt: str(u.updatedAt, EPOCH),
+  }));
+  const policies: InsurancePolicy[] = records(r.policies).map((p) => ({
+    id: str(p.id) || newId(),
+    insurer: str(p.insurer),
+    broker: str(p.broker),
+    policyNumber: str(p.policyNumber),
+    coverLevel: str(p.coverLevel),
+    sumInsured: numOrNull(p.sumInsured),
+    premium: numOrNull(p.premium),
+    premiumFrequency: p.premiumFrequency === 'monthly' || p.premiumFrequency === 'once' ? p.premiumFrequency : 'yearly',
+    startDate: str(p.startDate, now.slice(0, 10)),
+    endDate: typeof p.endDate === 'string' && p.endDate ? p.endDate : null,
+    claimsPhone: str(p.claimsPhone),
+    claimsEmail: str(p.claimsEmail),
+    unitId: typeof p.unitId === 'string' && p.unitId ? p.unitId : null,
+    documentIds: strList(p.documentIds, []),
+    notes: str(p.notes),
+    updatedAt: str(p.updatedAt, EPOCH),
+  }));
   const otherIncome: OtherIncome[] = records(r.otherIncome).map((o) => ({
     id: str(o.id) || newId(),
     date: str(o.date, now.slice(0, 10)),
@@ -393,6 +433,8 @@ export function normaliseState(raw: unknown): AppState {
     employments,
     recurring,
     bookings,
+    storageUnits,
+    policies,
     tombstones: tombstones(r.tombstones),
     deletedPhotoIds: strList(r.deletedPhotoIds, []),
   };

@@ -94,7 +94,7 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState | ((
   const syncPhotos = useCallback(async () => {
     const current = stateRef.current;
     const inUse = new Set(
-      [...current.items.map((i) => i.photoId), ...current.pickups.map((p) => p.signaturePhotoId), ...current.expenses.flatMap((e) => e.attachmentIds)].filter(
+      [...current.items.map((i) => i.photoId), ...current.pickups.map((p) => p.signaturePhotoId), ...current.expenses.flatMap((e) => e.attachmentIds), ...(current.policies ?? []).flatMap((p) => p.documentIds)].filter(
         (id): id is string => id !== null,
       ),
     );

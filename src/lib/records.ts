@@ -3,6 +3,7 @@ import { inPeriod, isSold } from './calc';
 import { liveState, paymentLabel } from './audit';
 import { EXPENSE_BOX_LABELS, tradingSummary, type TaxYear } from './tax';
 import { makeZip, type ZipEntry } from './zip';
+import { evidenceExtension } from './evidence';
 
 /**
  * The tax-year records bundle for an accountant or MTD bridging software:
@@ -97,14 +98,14 @@ export function salesCsv(books: AppState, year: TaxYear): string {
   );
 }
 
-export function expensesCsv(books: AppState, year: TaxYear): string {
+export function expensesCsv(books: AppState, year: TaxYear, fileNames?: Map<string, string>): string {
   const receipts = new Map(books.pickups.map((p) => [p.id, p.receiptNumber]));
   const rows = books.expenses
     .filter((e) => inPeriod(e.date, year.period))
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((e) => {
       const box = books.settings.expenseTaxBoxes[e.category] ?? 'other';
-      const files = e.attachmentIds.map((_, n) => attachmentFileName(e, n)).join(' ');
+      const files = e.attachmentIds.map((id, n) => fileNames?.get(id) ?? attachmentFileName(e, n)).join(' ');
       return [e.date, e.category, box, EXPENSE_BOX_LABELS[box], e.description, penceOf(e.amount), pounds(e.amount), paymentLabel(e.paymentMethod), e.recurringId !== null, e.pickupId ? receipts.get(e.pickupId) ?? '' : '', files, e.createdAt, e.voidedAt, e.voidReason, history(e.history), e.id];
     });
   return toCsv(
@@ -113,8 +114,8 @@ export function expensesCsv(books: AppState, year: TaxYear): string {
   );
 }
 
-export function attachmentFileName(e: { date: string; id: string }, n: number): string {
-  return `attachments/expense-${e.date}-${e.id.slice(0, 8)}-${n + 1}.jpg`;
+export function attachmentFileName(e: { date: string; id: string }, n: number, ext = 'jpg'): string {
+  return `attachments/expense-${e.date}-${e.id.slice(0, 8)}-${n + 1}.${ext}`;
 }
 
 export function summaryCsv(books: AppState, year: TaxYear): string {
@@ -146,26 +147,34 @@ export function summaryCsv(books: AppState, year: TaxYear): string {
 /** Builds the ZIP; `loadPhoto` fetches a signature image (null if not on this device or in the cloud) */
 export async function recordsZip(books: AppState, year: TaxYear, loadPhoto: (id: string) => Promise<Blob | null>): Promise<{ zip: Uint8Array; missing: number }> {
   const text = new TextEncoder();
-  const entries: ZipEntry[] = [
-    { name: 'purchases.csv', data: text.encode(purchasesCsv(books, year)) },
-    { name: 'sales.csv', data: text.encode(salesCsv(books, year)) },
-    { name: 'expenses.csv', data: text.encode(expensesCsv(books, year)) },
-    { name: 'summary.csv', data: text.encode(summaryCsv(books, year)) },
-  ];
+  const files: ZipEntry[] = [];
+  const fileNames = new Map<string, string>();
   let missing = 0;
   for (const p of books.pickups) {
     if (!p.signaturePhotoId || !inPeriod(p.date, year.period)) continue;
     const blob = await loadPhoto(p.signaturePhotoId).catch(() => null);
-    if (blob) entries.push({ name: signatureFileName(p), data: new Uint8Array(await blob.arrayBuffer()) });
+    if (blob) files.push({ name: signatureFileName(p), data: new Uint8Array(await blob.arrayBuffer()) });
     else missing++;
   }
   for (const e of books.expenses) {
     if (!inPeriod(e.date, year.period)) continue;
     for (const [n, id] of e.attachmentIds.entries()) {
       const blob = await loadPhoto(id).catch(() => null);
-      if (blob) entries.push({ name: attachmentFileName(e, n), data: new Uint8Array(await blob.arrayBuffer()) });
-      else missing++;
+      if (!blob) {
+        missing++;
+        continue;
+      }
+      const name = attachmentFileName(e, n, await evidenceExtension(blob));
+      fileNames.set(id, name);
+      files.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
     }
   }
+  const entries: ZipEntry[] = [
+    { name: 'purchases.csv', data: text.encode(purchasesCsv(books, year)) },
+    { name: 'sales.csv', data: text.encode(salesCsv(books, year)) },
+    { name: 'expenses.csv', data: text.encode(expensesCsv(books, year, fileNames)) },
+    { name: 'summary.csv', data: text.encode(summaryCsv(books, year)) },
+    ...files,
+  ];
   return { zip: makeZip(entries), missing };
 }

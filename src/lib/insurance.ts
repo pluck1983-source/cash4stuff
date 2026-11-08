@@ -1,8 +1,10 @@
-import type { AppState, Expense, Item, Pickup } from './types';
+import type { AppState, Expense, InsurancePolicy, Item, Pickup, StorageUnit } from './types';
+import { currentUnits, policiesForUnit, policyWarnings, unitForArea, unitLabel } from './storageUnits';
 import { categoryLabel, isHeld, itemCostMap, listValue, locationLabel } from './calc';
 import { liveState, paymentLabel } from './audit';
 import { toCsv } from './records';
 import { makeZip, type ZipEntry } from './zip';
+import { evidenceExtension } from './evidence';
 
 /**
  * The insurance claim pack: everything an insurer asks for when stock in
@@ -65,6 +67,23 @@ function storageCosts(state: AppState): Expense[] {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** The unit(s) the pack covers and the live policies on them */
+export function claimCover(state: AppState, area: string, today: string): { units: StorageUnit[]; policies: InsurancePolicy[] } {
+  const units = area ? [unitForArea(state, area)].filter((u): u is StorageUnit => !!u) : currentUnits(state);
+  const policies = units.flatMap((u) => policiesForUnit(state, u.id, today));
+  return { units, policies };
+}
+
+/** Gaps in the unit and policy details for this pack */
+export function coverWarnings(state: AppState, area: string, today: string): string[] {
+  const { units, policies } = claimCover(state, area, today);
+  const out: string[] = [];
+  if (area && units.length === 0) out.push(`No storage unit recorded for "${area}" (Costs → Storage & insurance)`);
+  if (units.length > 0 && policies.length === 0) out.push('No current insurance policy recorded for this storage');
+  for (const p of policies) for (const w of policyWarnings(state, p, today)) out.push(`Policy ${p.policyNumber || '(no number)'}: ${w}`);
+  return out;
+}
+
 export function claimReadiness(state: AppState, area: string): ClaimReadiness {
   const items = claimItems(state, area);
   const costs = itemCostMap(liveState(state));
@@ -113,8 +132,8 @@ function signatureFile(p: Pickup): string {
   return `signatures/receipt-${receiptLabel(p) || p.id.slice(0, 8)}.png`;
 }
 
-function storageFile(e: Expense, n: number): string {
-  return `storage-costs/${e.date}-${e.id.slice(0, 8)}-${n + 1}.jpg`;
+function storageFile(e: Expense, n: number, ext = 'jpg'): string {
+  return `storage-costs/${e.date}-${e.id.slice(0, 8)}-${n + 1}.${ext}`;
 }
 
 const gbp = (v: number) => v.toFixed(2);
@@ -203,8 +222,41 @@ export function inventoryHtml(
   state: AppState,
   items: Item[],
   r: ClaimReadiness,
-  opts: { area: string; generatedAt: Date; photoFiles: Map<string, string>; signatureFiles: Map<string, string> },
+  opts: { area: string; generatedAt: Date; photoFiles: Map<string, string>; signatureFiles: Map<string, string>; documentFiles?: Map<string, string[]> },
 ): string {
+  const cover = claimCover(state, opts.area, opts.generatedAt.toISOString().slice(0, 10));
+  const coverHtml = `${cover.units
+    .map(
+      (u) => `<h3>Stored at: ${esc(unitLabel(u))}</h3><table class="summary">
+${[
+  ['Address', [u.address, u.postcode].filter(Boolean).join(', ')],
+  ['Unit size', u.unitSize],
+  ['Account no.', u.accountRef],
+  ['Phone', u.phone],
+  ['Email', u.email],
+  ['Renting since', u.startDate],
+]
+  .filter(([, v]) => v)
+  .map(([k, v]) => `<tr><td>${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`)
+  .join('')}</table>`,
+    )
+    .join('')}${cover.policies
+    .map((p) => {
+      const docs = opts.documentFiles?.get(p.id) ?? [];
+      return `<h3>Insured: ${esc([p.broker, p.insurer].filter(Boolean).join(' / ') || 'Policy')}</h3><table class="summary">
+${[
+  ['Policy number', p.policyNumber],
+  ['Cover', p.coverLevel],
+  ['Sum insured', p.sumInsured !== null ? money(p.sumInsured) : ''],
+  ['Period', `${p.startDate} to ${p.endDate ?? 'rolling'}`],
+  ['Claims phone', p.claimsPhone],
+  ['Claims email', p.claimsEmail],
+]
+  .filter(([, v]) => v)
+  .map(([k, v]) => `<tr><td>${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`)
+  .join('')}${docs.length ? `<tr><td>Documents</td><td>${docs.map((d) => `<a href="${esc(d)}">${esc(d.split('/').pop())}</a>`).join(', ')}</td></tr>` : ''}</table>`;
+    })
+    .join('')}`;
   const costs = itemCostMap(liveState(state));
   const pickups = new Map(state.pickups.map((p) => [p.id, p]));
   const s = state.settings;
@@ -272,6 +324,7 @@ ${s.businessAddress ? `<div class="muted" style="white-space:pre-line">${esc(s.b
 <tr><td>Purchases it came from</td><td><b>${pickupsFor(state, items).length}</b> numbered purchase receipts - see below</td></tr>
 </table>
 <p class="muted">Cost per item is the purchase price of the lot it came from (stock is bought by weight) shared equally across the pieces logged from that lot.</p>
+${coverHtml}
 ${warnings.length ? `<div class="box"><b>Gaps in these records:</b><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
 <h2>Items by storage location</h2>
 ${itemRows || '<p>No stock held.</p>'}
@@ -285,14 +338,19 @@ ${purchaseRows || '<tr><td colspan="7">None</td></tr>'}
 `;
 }
 
-function readme(r: ClaimReadiness, area: string, generatedAt: Date, missingPhotos: number): string {
-  const warnings = readinessWarnings(r);
+function readme(state: AppState, r: ClaimReadiness, area: string, generatedAt: Date, missingPhotos: number): string {
+  const today = generatedAt.toISOString().slice(0, 10);
+  const warnings = [...readinessWarnings(r), ...coverWarnings(state, area, today)];
+  const { units, policies } = claimCover(state, area, today);
   return [
     `STOCK INVENTORY FOR INSURANCE${area ? ` - ${area}` : ''}`,
     `Made ${generatedAt.toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })} (${generatedAt.toISOString()})`,
     '',
     `${r.records} item records (${r.units} pieces). Cost £${gbp(r.costValue)}, asking price £${gbp(r.listValue)}.`,
     '',
+    ...units.map((u) => `STORED AT: ${unitLabel(u)}${u.address ? `, ${u.address.replace(/\n/g, ', ')}` : ''}${u.postcode ? ` ${u.postcode}` : ''}${u.accountRef ? ` (account ${u.accountRef})` : ''}${u.phone ? ` - ${u.phone}` : ''}`),
+    ...policies.map((p) => `INSURED: ${[p.broker, p.insurer].filter(Boolean).join(' / ')} policy ${p.policyNumber}${p.sumInsured !== null ? `, sum insured £${gbp(p.sumInsured)}` : ''}${p.claimsPhone ? ` - claims ${p.claimsPhone}` : ''}`),
+    ...(units.length || policies.length ? [''] : []),
     'WHAT IS IN HERE',
     '  inventory.html     - open in a browser: every item with its photo, location, receipt and value. Print or save as PDF for the insurer.',
     '  inventory.csv      - the same list as a spreadsheet',
@@ -300,6 +358,7 @@ function readme(r: ClaimReadiness, area: string, generatedAt: Date, missingPhoto
     '  storage-costs.csv  - payments for the storage unit, with receipts in storage-costs/',
     '  photos/            - one photo per item, named by stock code',
     '  signatures/        - sellers\' signatures on the purchase receipts',
+    '  insurance/         - the policy documents saved in the app',
     '',
     warnings.length || missingPhotos ? 'GAPS TO FIX' : 'No gaps found in the records.',
     ...warnings.map((w) => `  - ${w}`),
@@ -343,22 +402,38 @@ export async function claimPackZip(
   const photoFiles = new Map<string, string>();
   const signatureFiles = new Map<string, string>();
   const costFiles = new Map<string, string[]>();
+  const documentFiles = new Map<string, string[]>();
+  const { policies } = claimCover(state, opts.area, generatedAt.toISOString().slice(0, 10));
   let missing = 0;
 
-  type Job = { photoId: string; name: string; record: () => void };
+  type Job = { photoId: string; name: string; record: (name: string) => void; evidence?: true };
   const jobs: Job[] = [
-    ...items.filter((i) => i.photoId).map((i) => ({ photoId: i.photoId as string, name: itemPhotoFile(i), record: () => photoFiles.set(i.id, itemPhotoFile(i)) })),
-    ...pickups.filter((p) => p.signaturePhotoId).map((p) => ({ photoId: p.signaturePhotoId as string, name: signatureFile(p), record: () => signatureFiles.set(p.id, signatureFile(p)) })),
+    ...items.filter((i) => i.photoId).map((i) => ({ photoId: i.photoId as string, name: itemPhotoFile(i), record: (name: string) => photoFiles.set(i.id, name) })),
+    ...pickups.filter((p) => p.signaturePhotoId).map((p) => ({ photoId: p.signaturePhotoId as string, name: signatureFile(p), record: (name: string) => signatureFiles.set(p.id, name) })),
     ...costs.flatMap((e) =>
-      e.attachmentIds.map((id, n) => ({ photoId: id, name: storageFile(e, n), record: () => costFiles.set(e.id, [...(costFiles.get(e.id) ?? []), storageFile(e, n)]) })),
+      e.attachmentIds.map((id, n) => ({
+        photoId: id,
+        name: storageFile(e, n),
+        evidence: true as const,
+        record: (name: string) => costFiles.set(e.id, [...(costFiles.get(e.id) ?? []), name]),
+      })),
+    ),
+    ...policies.flatMap((p) =>
+      p.documentIds.map((id, n) => ({
+        photoId: id,
+        name: `insurance/${slug(p.policyNumber || p.id.slice(0, 8))}-${n + 1}.jpg`,
+        evidence: true as const,
+        record: (name: string) => documentFiles.set(p.id, [...(documentFiles.get(p.id) ?? []), name]),
+      })),
     ),
   ];
   let done = 0;
   await loadAll(jobs, async (job) => {
     const blob = await loadPhoto(job.photoId).catch(() => null);
     if (blob) {
-      files.push({ name: job.name, data: new Uint8Array(await blob.arrayBuffer()) });
-      job.record();
+      const name = job.evidence ? job.name.replace(/\.jpg$/, `.${await evidenceExtension(blob)}`) : job.name;
+      files.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
+      job.record(name);
     } else missing++;
     onProgress?.(++done, jobs.length);
   });
@@ -366,8 +441,8 @@ export async function claimPackZip(
 
   const text = new TextEncoder();
   const entries: ZipEntry[] = [
-    { name: 'README.txt', data: text.encode(readme(readiness, opts.area, generatedAt, missing)) },
-    { name: 'inventory.html', data: text.encode(inventoryHtml(state, items, readiness, { area: opts.area, generatedAt, photoFiles, signatureFiles })) },
+    { name: 'README.txt', data: text.encode(readme(state, readiness, opts.area, generatedAt, missing)) },
+    { name: 'inventory.html', data: text.encode(inventoryHtml(state, items, readiness, { area: opts.area, generatedAt, photoFiles, signatureFiles, documentFiles })) },
     { name: 'inventory.csv', data: text.encode(inventoryCsv(state, items, photoFiles)) },
     { name: 'purchases.csv', data: text.encode(purchasesForClaimCsv(state, items, signatureFiles)) },
     { name: 'storage-costs.csv', data: text.encode(storageCostsCsv(costs, costFiles)) },

@@ -5,7 +5,7 @@ import { money, parseNumber, shortDate } from '../lib/format';
 import { groupBySeller, groupLabel } from '../lib/sellers';
 import { routeHref, useIsDesktop } from '../lib/router';
 import { downloadBlob, downloadText, itemsToCsv, todayIso } from '../lib/storage';
-import { claimPackZip, claimReadiness, readinessWarnings } from '../lib/insurance';
+import { claimPackZip, claimReadiness, coverWarnings, readinessWarnings } from '../lib/insurance';
 import { loadPhotoBlob } from '../lib/photos';
 import { Button, Empty, Input, LinkButton, PageHeader, Select, StatusBadge } from '../components/ui';
 import { ItemCard } from '../components/ItemCard';
@@ -39,7 +39,7 @@ export function StockView({ state }: { state: AppState }) {
   /** Everything still held in the chosen storage area (or everywhere), with photos and purchase receipts, for an insurance claim */
   async function exportClaimPack() {
     const where = filter.area || 'all storage areas';
-    const gaps = readinessWarnings(claimReadiness(state, filter.area));
+    const gaps = [...readinessWarnings(claimReadiness(state, filter.area)), ...coverWarnings(state, filter.area, todayIso())];
     const intro = `Insurance pack for ${where}: every unsold item with its photo, location, purchase receipt and value, as of now.`;
     const ask = gaps.length ? `${intro}\n\nGaps an insurer could query:\n- ${gaps.join('\n- ')}\n\nMake it anyway?` : `${intro}\n\nNo gaps found. Make it now?`;
     if (!window.confirm(ask)) return;

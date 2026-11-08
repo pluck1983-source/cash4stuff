@@ -50,6 +50,8 @@ export function mergeStates(local: AppState, remote: AppState): AppState {
     employments: mergeList(local.employments, remote.employments, tombstones),
     recurring: mergeList(local.recurring, remote.recurring, tombstones),
     bookings: mergeList(local.bookings, remote.bookings, tombstones),
+    storageUnits: mergeList(local.storageUnits ?? [], remote.storageUnits ?? [], tombstones),
+    policies: mergeList(local.policies ?? [], remote.policies ?? [], tombstones),
     tombstones,
     deletedPhotoIds: [...new Set([...local.deletedPhotoIds, ...remote.deletedPhotoIds])],
   };

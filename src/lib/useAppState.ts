@@ -7,6 +7,8 @@ import { applyListEdit, type ListEdit } from './lists';
 import { splitSale, type Sale } from './quantity';
 import { mergeCustomers, setResolved } from './sellers';
 import { loadState, newId, saveState, todayIso } from './storage';
+import { endUnit, moveToNewUnit, savePolicy, saveUnit, type MoveOptions, type Rent, type UnitInput } from './storageUnits';
+import type { InsurancePolicy } from './types';
 
 /** Item fields the photo AI may never change - write-offs and sales are a person's decision */
 export const AI_FORBIDDEN = ['status', 'soldPrice', 'soldDate', 'salesChannel', 'saleCosts', 'listPrice', 'quantity'] as const;
@@ -323,6 +325,54 @@ export function useAppState() {
       },
       deleteEmployment(id: string) {
         remove('employments', id);
+      },
+      /** Adds or edits a storage unit, keeping its rent (a repeating cost) in step */
+      saveStorageUnit(input: UnitInput, rent: Rent | null) {
+        const now = stamp();
+        setState((s) => saveUnit(s, input, rent, now).state);
+      },
+      /** Moved out: the unit stays on record with an end date and its rent stops */
+      endStorageUnit(id: string, endDate: string) {
+        const now = stamp();
+        setState((s) => endUnit(s, id, endDate, now));
+      },
+      /** Switches to a new company or unit; returns how many items and policies were carried across */
+      moveStorageUnit(fromId: string, next: UnitInput, rent: Rent | null, opts: MoveOptions): { movedItems: number; movedPolicies: number } {
+        const now = stamp();
+        const preview = moveToNewUnit(stateRef.current, fromId, next, rent, opts, now);
+        setState((s) => moveToNewUnit(s, fromId, next, rent, opts, now).state);
+        return { movedItems: preview.movedItems, movedPolicies: preview.movedPolicies };
+      },
+      /** Removes a unit entered by mistake (its rent plan is left for the Repeating costs list) */
+      deleteStorageUnit(id: string) {
+        const now = stamp();
+        setState((s) => ({
+          ...s,
+          storageUnits: s.storageUnits.filter((u) => u.id !== id),
+          policies: s.policies.map((p) => (p.unitId === id ? { ...p, unitId: null, updatedAt: now } : p)),
+          tombstones: { ...s.tombstones, [id]: now },
+        }));
+      },
+      savePolicy(input: Omit<InsurancePolicy, 'id' | 'updatedAt'> & { id?: string }) {
+        const now = stamp();
+        setState((s) => {
+          const before = input.id ? s.policies.find((p) => p.id === input.id) : undefined;
+          const dropped = before ? before.documentIds.filter((id) => !input.documentIds.includes(id)) : [];
+          const next = savePolicy(s, input, now);
+          return dropped.length ? { ...next, deletedPhotoIds: [...next.deletedPhotoIds, ...dropped] } : next;
+        });
+      },
+      deletePolicy(id: string) {
+        const now = stamp();
+        setState((s) => {
+          const policy = s.policies.find((p) => p.id === id);
+          return {
+            ...s,
+            policies: s.policies.filter((p) => p.id !== id),
+            deletedPhotoIds: [...s.deletedPhotoIds, ...(policy?.documentIds ?? [])],
+            tombstones: { ...s.tombstones, [id]: now },
+          };
+        });
       },
       updateSettings(settings: Settings) {
         setState((s) => ({ ...s, settings, settingsUpdatedAt: stamp() }));

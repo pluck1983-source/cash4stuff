@@ -303,6 +303,73 @@ export interface Booking {
   updatedAt: string;
 }
 
+export type RentFrequency = RecurringFrequency;
+
+/**
+ * A storage unit rented from a storage company. Stock is in it when its
+ * location area matches `area`. Moving to another company or unit ends this
+ * one (endDate set) and starts a new one, so the history of where stock was
+ * kept - and who to call about it - stays on record.
+ */
+export interface StorageUnit {
+  id: string;
+  company: string;
+  /** Branch or site name, e.g. "Swindon West" */
+  site: string;
+  address: string;
+  postcode: string;
+  unitNumber: string;
+  /** e.g. "50 sq ft" */
+  unitSize: string;
+  /** Customer / account / contract number with the storage company */
+  accountRef: string;
+  phone: string;
+  email: string;
+  /** Notice needed to leave, e.g. "14 days" */
+  noticePeriod: string;
+  /** Opening / access hours */
+  accessHours: string;
+  /** The storage area name items use for this unit (one of Settings storage areas) */
+  area: string;
+  /** ISO date moved in */
+  startDate: string;
+  /** ISO date moved out - null while still renting it */
+  endDate: string | null;
+  /** The repeating cost that posts its rent, if there is one */
+  recurringId: string | null;
+  notes: string;
+  updatedAt: string;
+}
+
+export type PremiumFrequency = 'monthly' | 'yearly' | 'once';
+
+/** An insurance policy - usually for the stock in a storage unit */
+export interface InsurancePolicy {
+  id: string;
+  /** The company that pays claims (underwriter), e.g. SAGIC */
+  insurer: string;
+  /** Who it was bought through, e.g. Surewise - often who to call first */
+  broker: string;
+  policyNumber: string;
+  /** e.g. "Silver", "Business storage" */
+  coverLevel: string;
+  /** Most it will pay, null if not known */
+  sumInsured: number | null;
+  premium: number | null;
+  premiumFrequency: PremiumFrequency;
+  startDate: string;
+  /** Renewal / end date, null if it rolls on */
+  endDate: string | null;
+  claimsPhone: string;
+  claimsEmail: string;
+  /** The storage unit it covers, null for anything else */
+  unitId: string | null;
+  /** Photos of the schedule, certificate or IPID, kept in the photo store */
+  documentIds: string[];
+  notes: string;
+  updatedAt: string;
+}
+
 export interface AppState {
   version: 1;
   settings: Settings;
@@ -314,6 +381,8 @@ export interface AppState {
   employments: Employment[];
   recurring: RecurringCost[];
   bookings: Booking[];
+  storageUnits: StorageUnit[];
+  policies: InsurancePolicy[];
   /**
    * Record id -> when it was deleted. Kept so a device that still has the
    * record doesn't bring it back when the two copies are merged.

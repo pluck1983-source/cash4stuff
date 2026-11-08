@@ -7,13 +7,15 @@ import type { AppActions } from '../lib/useAppState';
 import { PERIOD_LABELS, expensesByCategory, inPeriod, periodFor, type PeriodKey } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { newId, todayIso } from '../lib/storage';
-import { compressImage, savePhoto } from '../lib/photos';
-import { Photo } from '../components/Photo';
+import { savePhoto } from '../lib/photos';
+import { EvidenceThumb } from '../components/Photo';
+import { mustKeep, prepareEvidence, retainUntil } from '../lib/evidence';
+import { StorageAndInsurance } from '../components/StorageAndInsurance';
 import { SplitReceipt } from '../components/SplitReceipt';
 import { blankLine, businessTotal, type ReceiptLine } from '../lib/receiptLines';
 import { Button, Card, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
 
-type Tab = 'costs' | 'income';
+type Tab = 'costs' | 'income' | 'storage';
 type Repeat = 'once' | RecurringFrequency;
 
 interface Draft {
@@ -191,9 +193,13 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
     if (!files?.length) return;
     const ids: string[] = [];
     for (const file of Array.from(files)) {
-      const id = newId();
-      await savePhoto(id, await compressImage(file), false);
-      ids.push(id);
+      try {
+        const id = newId();
+        await savePhoto(id, await prepareEvidence(file), false);
+        ids.push(id);
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : `Couldn't add ${file.name}`);
+      }
     }
     setDraft((d) => ({ ...d, attachmentIds: [...d.attachmentIds, ...ids] }));
   }
@@ -213,8 +219,8 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
   return (
     <div>
       <PageHeader title="Costs & income" />
-      <div className="mb-4 inline-flex rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
-        {(['costs', 'income'] as Tab[]).map((t) => (
+      <div className="mb-4 flex w-full rounded-lg border sm:inline-flex sm:w-auto border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
+        {(['costs', 'income', 'storage'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -223,12 +229,16 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
               setDraft(blankDraft(defaultCategory));
               setLines(null);
             }}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium ${tab === t ? 'bg-brand-600 text-white' : 'text-slate-600 dark:text-slate-300'}`}
+            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium sm:flex-none sm:px-4 sm:text-sm ${tab === t ? 'bg-brand-600 text-white' : 'text-slate-600 dark:text-slate-300'}`}
           >
-            {t === 'costs' ? 'Running costs' : 'Other income'}
+            {t === 'costs' ? 'Running costs' : t === 'income' ? 'Other income' : 'Storage & insurance'}
           </button>
         ))}
       </div>
+
+      {tab === 'storage' ? (
+        <StorageAndInsurance state={state} actions={actions} />
+      ) : (
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title={draft.planId ? 'Edit repeating cost' : draft.id ? 'Edit entry' : tab === 'costs' ? 'Add a cost' : 'Add income'} className="min-w-0 lg:order-2">
@@ -353,25 +363,45 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
               <Input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={lines ? 'e.g. Poundland' : tab === 'costs' ? 'e.g. 100 mailing bags' : ''} />
             </Field>
             {tab === 'costs' && !repeating && (
-              <Field label="Receipts & invoices (optional)" hint="Photos are kept with the cost and go in the records ZIP">
+              <Field
+                label="Evidence (receipts, invoices, screenshots)"
+                hint={
+                  <>
+                    Bought on Facebook Marketplace or from a person? Add screenshots of the listing and the chat showing the item, price and seller, plus the
+                    bank or PayPal payment. Photos, screenshots and PDFs are kept with the cost, synced to Drive and go in the records ZIP.
+                    {draft.date && ` Keep until ${shortDate(retainUntil(draft.date))} (HMRC: 5 years after the filing deadline).`}
+                  </>
+                }
+              >
                 <div className="flex flex-wrap gap-2">
                   {draft.attachmentIds.map((id) => (
                     <div key={id} className="relative">
-                      <Photo id={id} alt="Receipt" className="h-20 w-16 rounded-lg" />
+                      <EvidenceThumb id={id} className="h-20 w-16 rounded-lg" />
                       <button
                         type="button"
                         aria-label="Remove attachment"
                         className="absolute -right-1.5 -top-1.5 h-6 w-6 rounded-full bg-slate-900 text-xs text-white"
-                        onClick={() => setDraft({ ...draft, attachmentIds: draft.attachmentIds.filter((x) => x !== id) })}
+                        onClick={() => {
+                          const saved = draft.id ? state.expenses.find((e) => e.id === draft.id) : undefined;
+                          if (
+                            saved?.attachmentIds.includes(id) &&
+                            mustKeep(saved.date, todayIso()) &&
+                            !window.confirm(
+                              `This is evidence for a cost HMRC expects you to keep until ${shortDate(retainUntil(saved.date))}.\n\nRemove it from this cost? The file itself stays in Drive and in the cost's edit history.`,
+                            )
+                          )
+                            return;
+                          setDraft({ ...draft, attachmentIds: draft.attachmentIds.filter((x) => x !== id) });
+                        }}
                       >
                         ✕
                       </button>
                     </div>
                   ))}
-                  <label className="flex h-20 w-16 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-xs text-slate-500 dark:border-slate-600">
+                  <label className="flex h-20 w-16 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-center text-xs text-slate-500 dark:border-slate-600">
                     <span className="text-xl leading-none">+</span>
-                    Photo
-                    <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => void attach(e.target.files).then(() => (e.target.value = ''))} />
+                    Photo / file
+                    <input type="file" accept="image/*,application/pdf" multiple className="sr-only" onChange={(e) => void attach(e.target.files).then(() => (e.target.value = ''))} />
                   </label>
                 </div>
               </Field>
@@ -472,6 +502,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
                         {shortDate(r.date)}
                         {r.paymentMethod && ` · ${paymentLabel(r.paymentMethod)}`}
                         {'attachmentIds' in r && r.attachmentIds.length > 0 && ` · 📎 ${r.attachmentIds.length}`}
+                        {'attachmentIds' in r && r.attachmentIds.length === 0 && !r.recurringId && !voided && <span className="text-amber-700 dark:text-amber-400"> · no evidence</span>}
                         {'kind' in r && r.weightKg !== null && ` · ${r.weightKg} kg`}
                         {r.pickupId && ` · ${pickupName(r.pickupId)}`}
                       </div>
@@ -502,6 +533,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

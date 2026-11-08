@@ -71,6 +71,82 @@ offline.
   - Period: this month, last month, this year, this UK tax year, all time.
     Stock value figures are always "as of now".
 
+## Insurance pack (for a storage claim)
+
+**Stock → Insurance pack** makes a ZIP of every unsold item in the chosen
+storage area (pick the area in the Stock filters first, or leave it on All
+areas), as of that moment:
+
+- `inventory.html` - open in any browser: each item with its photo, stock
+  code, location, date acquired, purchase receipt number, cost and asking
+  price, grouped by rack/box, then the purchase receipts with the sellers'
+  signatures. Print it or save it as a PDF for the insurer.
+- `inventory.csv`, `purchases.csv` (the numbered receipts the stock came
+  from), `storage-costs.csv` (any cost whose type or description mentions
+  "storage", with receipt photos) and the `photos/` and `signatures/` files.
+- `README.txt` - what's in it, the totals and the gaps.
+
+Before making it, the app lists the gaps an insurer could query: items with
+no photo, items not linked to a purchase, purchases with no receipt number
+or not signed by the seller, and stock with no price or cost.
+
+Why: the storage policy (Surewise, underwritten by SAGIC - IPID SCF2627
+V1.0) excludes *commercial goods or stock unless you are able to provide
+proof of purchase, including receipts for all storage content*, and asks for
+evidence of value or age for every item claimed. Stock is bought by the
+kilo, so the purchase receipts plus each item's link to its pickup are that
+proof. The policy also only covers theft with forcible and violent entry,
+needs the police told within 24 hours of a theft and the claim made within
+30 days, and excludes mould, mildew and gradual damage.
+
+To keep it useful: give every item a photo and a pickup, get every purchase
+signed, make a fresh pack when a lot of stock goes in or out, and keep the
+latest one somewhere other than the phone and the unit (email it to
+yourself or save it to Drive). Photos not yet on the device are fetched
+from Drive, so make it while online.
+
+## Storage units and insurance
+
+**Costs → Storage & insurance** keeps the storage company's details
+(company, site, unit number and size, address, account number, phone,
+email, access hours, notice period) and the insurance policies (broker,
+insurer, policy number, cover level, sum insured, premium, dates, claims
+phone/email, and photos or PDFs of the schedule/IPID).
+
+- A unit's rent is a repeating cost, created and kept in step from the unit
+  form.
+- **Move to new unit** switches company or unit in one go. The old unit
+  stays on record with its end date, and its rent stops the day before the
+  move (any rent already posted after that is voided). The new unit and its
+  rent start on the move date, unsold stock in the old unit's area is
+  relabelled to the new one (sold items keep their old location), and its
+  policies can be pointed at the new unit. You still have to tell the
+  insurer: the app keeps warning until you do.
+- Warnings cover a policy renewing within 30 days or already ended, a
+  policy still pointing at a unit you've moved out of, stock costing more
+  than the sum insured, and stock in a unit with no policy.
+- The insurance pack includes the unit and policy details and the policy
+  documents.
+
+## Evidence for costs
+
+Each cost takes photos, screenshots and PDFs as evidence: receipts,
+invoices, and, for things bought on Facebook Marketplace or from a person,
+the listing, the chat showing the item, price and seller, and the
+bank/PayPal payment. Images are saved at up to 2400 px, so chat text stays
+readable, and PDFs (up to 15 MB) are kept as they are. Everything syncs to
+the Drive `photos` folder and goes in the accountant's records ZIP with its
+real file type. One-off costs with no evidence show **no evidence** in the
+list.
+
+How long to keep it: HMRC expects a sole trader to keep business records
+for at least 5 years after the 31 January filing deadline for the tax year
+they belong to. The cost form shows the date (e.g. a cost on 10 Nov 2026 →
+keep until 31 Jan 2033). Removing evidence from a cost inside that period
+asks first, and the file itself is never deleted from Drive: it stays in the
+cost's edit history. Don't delete or empty the Drive folder within that
+period. "Sign out & clear this device" only clears the device.
+
 ## Finance & tax
 
 The **Finance** tab works per UK tax year (6 April - 5 April) on the cash

@@ -347,10 +347,12 @@ export const googleDriveProvider: CloudProvider = {
     if (await findPhotoFileId(photoId)) return;
     const folderId = await ensurePhotosFolder();
     const boundary = `cash4stuff${Date.now()}`;
-    const metadata = { name: photoFileName(photoId), parents: [folderId], mimeType: 'image/jpeg' };
+    // Receipts can be PDFs or PNG screenshots; the file name stays photo-<id>.jpg so it's found by id.
+    const type = blob.type || 'image/jpeg';
+    const metadata = { name: photoFileName(photoId), parents: [folderId], mimeType: type };
     const body = new Blob([
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`,
-      `--${boundary}\r\nContent-Type: image/jpeg\r\n\r\n`,
+      `--${boundary}\r\nContent-Type: ${type}\r\n\r\n`,
       blob,
       `\r\n--${boundary}--`,
     ]);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { compressImage, onPhotoChanged, photoFingerprint, photoUrl } from '../lib/photos';
+import { compressImage, loadPhotoBlob, onPhotoChanged, photoFingerprint, photoUrl } from '../lib/photos';
+import { isPdf } from '../lib/evidence';
 import { ZoomableImg } from './Lightbox';
 
 /**
@@ -134,4 +135,37 @@ export function PhotoPicker({
       />
     </div>
   );
+}
+
+/**
+ * A cost's evidence file - a photo/screenshot shows as a thumbnail; a PDF
+ * shows as a tile that opens it.
+ */
+export function EvidenceThumb({ id, className = '' }: { id: string; className?: string }) {
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    let url: string | null = null;
+    void loadPhotoBlob(id).then(async (blob) => {
+      if (cancelled) return;
+      if (blob && (await isPdf(blob))) {
+        url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+        setPdfUrl(url);
+      }
+      setChecked(true);
+    });
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [id]);
+  if (pdfUrl)
+    return (
+      <a href={pdfUrl} target="_blank" rel="noreferrer" className={`flex flex-col items-center justify-center rounded-lg border border-slate-300 bg-white text-xs font-semibold text-red-700 dark:border-slate-600 dark:bg-slate-800 ${className}`}>
+        <span className="text-lg leading-none">PDF</span>
+        <span className="font-normal text-slate-500">open</span>
+      </a>
+    );
+  return checked ? <Photo id={id} alt="Receipt or evidence" className={className} /> : <div className={`bg-slate-100 dark:bg-slate-800 ${className}`} />;
 }

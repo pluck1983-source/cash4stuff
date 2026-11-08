@@ -4,7 +4,9 @@ import { EMPTY_FILTER, GENDER_LABELS, GENDER_OPTIONS, UNCATEGORISED, categoryLab
 import { money, parseNumber, shortDate } from '../lib/format';
 import { groupBySeller, groupLabel } from '../lib/sellers';
 import { routeHref, useIsDesktop } from '../lib/router';
-import { downloadText, itemsToCsv, todayIso } from '../lib/storage';
+import { downloadBlob, downloadText, itemsToCsv, todayIso } from '../lib/storage';
+import { claimPackZip, claimReadiness, coverWarnings, readinessWarnings } from '../lib/insurance';
+import { loadPhotoBlob } from '../lib/photos';
 import { Button, Empty, Input, LinkButton, PageHeader, Select, StatusBadge } from '../components/ui';
 import { ItemCard } from '../components/ItemCard';
 import { Photo } from '../components/Photo';
@@ -32,6 +34,27 @@ export function StockView({ state }: { state: AppState }) {
   const [sort, setSort] = useState<SortKey>('newest');
   const [showFilters, setShowFilters] = useState(false);
   const [layout, setLayout] = useState<'table' | 'cards'>('table');
+  const [packProgress, setPackProgress] = useState<string | null>(null);
+
+  /** Everything still held in the chosen storage area (or everywhere), with photos and purchase receipts, for an insurance claim */
+  async function exportClaimPack() {
+    const where = filter.area || 'all storage areas';
+    const gaps = [...readinessWarnings(claimReadiness(state, filter.area)), ...coverWarnings(state, filter.area, todayIso())];
+    const intro = `Insurance pack for ${where}: every unsold item with its photo, location, purchase receipt and value, as of now.`;
+    const ask = gaps.length ? `${intro}\n\nGaps an insurer could query:\n- ${gaps.join('\n- ')}\n\nMake it anyway?` : `${intro}\n\nNo gaps found. Make it now?`;
+    if (!window.confirm(ask)) return;
+    setPackProgress('Preparing…');
+    try {
+      const { zip, missing } = await claimPackZip(state, { area: filter.area }, loadPhotoBlob, (done, total) => setPackProgress(`Photos ${done}/${total}…`));
+      const name = `insurance-stock-${(filter.area || 'all').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}-${todayIso()}.zip`;
+      downloadBlob(name, new Blob([zip as BlobPart], { type: 'application/zip' }));
+      window.alert(
+        `${missing ? `${missing} photo(s) couldn't be loaded (not on this device and not synced yet) - make it again once online.\n\n` : ''}Save a copy somewhere other than this phone and the storage unit - email it to yourself or put it in Drive.`,
+      );
+    } finally {
+      setPackProgress(null);
+    }
+  }
 
   const setFilter = (patch: Partial<ItemFilter>) => {
     const next = { ...filter, ...patch };
@@ -86,6 +109,9 @@ export function StockView({ state }: { state: AppState }) {
               <Button onClick={() => setLayout(layout === 'table' ? 'cards' : 'table')}>{layout === 'table' ? 'Card view' : 'Table view'}</Button>
             )}
             <Button onClick={() => downloadText(`cash4stuff-stock-${todayIso()}.csv`, itemsToCsv(state, items), 'text/csv')}>Export CSV</Button>
+            <Button onClick={() => void exportClaimPack()} disabled={packProgress !== null} title="Unsold stock in the chosen storage area, with photos and purchase receipts - for an insurance claim">
+              {packProgress ?? `Insurance pack${filter.area ? ` (${filter.area})` : ''}`}
+            </Button>
             <LinkButton href={routeHref({ name: 'add-item', pickupId: null })} variant="primary">
               + Add item
             </LinkButton>

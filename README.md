@@ -71,6 +71,40 @@ offline.
   - Period: this month, last month, this year, this UK tax year, all time.
     Stock value figures are always "as of now".
 
+## Insurance pack (for a storage claim)
+
+**Stock → Insurance pack** makes a ZIP of every unsold item in the chosen
+storage area (pick the area in the Stock filters first, or leave it on All
+areas), as of that moment:
+
+- `inventory.html` - open in any browser: each item with its photo, stock
+  code, location, date acquired, purchase receipt number, cost and asking
+  price, grouped by rack/box, then the purchase receipts with the sellers'
+  signatures. Print it or save it as a PDF for the insurer.
+- `inventory.csv`, `purchases.csv` (the numbered receipts the stock came
+  from), `storage-costs.csv` (any cost whose type or description mentions
+  "storage", with receipt photos) and the `photos/` and `signatures/` files.
+- `README.txt` - what's in it, the totals and the gaps.
+
+Before making it, the app lists the gaps an insurer could query: items with
+no photo, items not linked to a purchase, purchases with no receipt number
+or not signed by the seller, and stock with no price or cost.
+
+Why: the storage policy (Surewise, underwritten by SAGIC - IPID SCF2627
+V1.0) excludes *commercial goods or stock unless you are able to provide
+proof of purchase, including receipts for all storage content*, and asks for
+evidence of value or age for every item claimed. Stock is bought by the
+kilo, so the purchase receipts plus each item's link to its pickup are that
+proof. The policy also only covers theft with forcible and violent entry,
+needs the police told within 24 hours of a theft and the claim made within
+30 days, and excludes mould, mildew and gradual damage.
+
+To keep it useful: give every item a photo and a pickup, get every purchase
+signed, make a fresh pack when a lot of stock goes in or out, and keep the
+latest one somewhere other than the phone and the unit (email it to
+yourself or save it to Drive). Photos not yet on the device are fetched
+from Drive, so make it while online.
+
 ## Finance & tax
 
 The **Finance** tab works per UK tax year (6 April - 5 April) on the cash

@@ -17,10 +17,11 @@ type AiForbidden = (typeof AI_FORBIDDEN)[number];
 type NewPickup = Omit<Pickup, 'id' | 'updatedAt' | keyof Audited | 'amountPaid' | 'receiptNumber' | 'resolvedAt'>;
 type NewItem = Omit<Item, 'id' | 'sku' | 'quantity' | 'createdAt' | 'updatedAt' | 'priceHistory' | 'history'> & { sku?: string; quantity?: number };
 type NewEmployment = Omit<Employment, 'id' | 'updatedAt'>;
-type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId' | 'paymentMethod' | 'attachmentIds' | keyof Audited> & {
+type NewExpense = Omit<Expense, 'id' | 'updatedAt' | 'recurringId' | 'paymentMethod' | 'attachmentIds' | 'attachmentHashes' | keyof Audited> & {
   recurringId?: string | null;
   paymentMethod?: Expense['paymentMethod'];
   attachmentIds?: string[];
+  attachmentHashes?: Record<string, string>;
 };
 type NewRecurring = Omit<RecurringCost, 'id' | 'updatedAt'>;
 type NewIncome = Omit<OtherIncome, 'id' | 'updatedAt' | keyof Audited>;
@@ -232,7 +233,7 @@ export function useAppState() {
         const now = stamp();
         setState((s) => {
           const before = data.id ? s.expenses.find((e) => e.id === data.id) : undefined;
-          const base = { ...data, recurringId: data.recurringId ?? null, paymentMethod: data.paymentMethod ?? before?.paymentMethod ?? '', attachmentIds: data.attachmentIds ?? before?.attachmentIds ?? [], updatedAt: now };
+          const base = { ...data, recurringId: data.recurringId ?? null, paymentMethod: data.paymentMethod ?? before?.paymentMethod ?? '', attachmentIds: data.attachmentIds ?? before?.attachmentIds ?? [], attachmentHashes: data.attachmentHashes ?? before?.attachmentHashes ?? {}, updatedAt: now };
           if (!before) return { ...s, expenses: [...s.expenses, { ...base, id: data.id ?? newId(), ...auditDefaults(now) }] };
           const next = withHistory(before, { ...before, ...base, id: before.id }, now, EXPENSE_FIELDS);
           return { ...s, expenses: s.expenses.map((e) => (e.id === before.id ? next : e)) };

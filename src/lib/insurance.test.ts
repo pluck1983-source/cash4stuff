@@ -46,7 +46,7 @@ function books(): AppState {
     item({ id: 'i3', sku: 'TOP-0003', status: 'sold', soldPrice: 5, soldDate: '2026-03-12' }),
     item({ id: 'i4', sku: 'BAG-0001', pickupId: null, location: { area: 'Garage', rack: '', box: '' }, listPrice: null }),
   ];
-  const rent: Expense = { ...auditDefaults(at), id: 'e1', date: '2026-03-01', category: 'Storage', description: 'Unit 4 rent', amount: 80, pickupId: null, recurringId: null, paymentMethod: 'card', attachmentIds: ['r1'], updatedAt: at };
+  const rent: Expense = { ...auditDefaults(at), id: 'e1', date: '2026-03-01', category: 'Storage', description: 'Unit 4 rent', amount: 80, pickupId: null, recurringId: null, paymentMethod: 'card', attachmentIds: ['r1'], attachmentHashes: {}, updatedAt: at };
   s.expenses = [rent];
   return s;
 }

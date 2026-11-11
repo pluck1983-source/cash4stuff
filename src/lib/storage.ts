@@ -154,6 +154,12 @@ function strList(value: unknown, fallback: string[]): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : fallback;
 }
 
+/** Attachment id -> file fingerprint; anything malformed is dropped */
+function hashMap(value: unknown): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((e): e is [string, string] => typeof e[1] === 'string'));
+}
+
 function subcategoryMap(value: unknown, fallback: Record<string, string[]>): Record<string, string[]> {
   if (typeof value !== 'object' || value === null) return { ...fallback };
   const result: Record<string, string[]> = {};
@@ -332,6 +338,7 @@ export function normaliseState(raw: unknown): AppState {
     recurringId: typeof e.recurringId === 'string' ? e.recurringId : null,
     paymentMethod: paymentMethod(e.paymentMethod),
     attachmentIds: strList(e.attachmentIds, []),
+    attachmentHashes: hashMap(e.attachmentHashes),
     ...audited(e, str(e.updatedAt, EPOCH) === EPOCH ? now : str(e.updatedAt)),
     updatedAt: str(e.updatedAt, EPOCH),
   }));

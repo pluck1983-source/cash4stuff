@@ -9,6 +9,7 @@ import { navigate, routeHref } from '../lib/router';
 import { todayIso } from '../lib/storage';
 import { Button, Card, Empty, Field, Input, PageHeader, TextArea } from '../components/ui';
 import { FROM_BOOKING_KEY } from './Pickups';
+import { showToast } from '../lib/toast';
 
 type Draft = Pick<Booking, 'date' | 'time' | 'name' | 'address' | 'postcode' | 'contact' | 'notes'>;
 
@@ -209,6 +210,7 @@ export function DiaryView({ state, actions }: { state: AppState; actions: AppAct
               const base = editing === 'new' ? { status: 'booked' as const, pickupId: null, miles: null } : editing;
               actions.saveBooking({ ...base, ...d });
               setEditing(null);
+              showToast(`✓ ${editing === 'new' ? 'Booked' : 'Saved'}: ${d.name || 'pickup'} on ${shortDate(d.date)}${d.time ? ` at ${d.time}` : ''}`);
             }}
           />
         </Card>

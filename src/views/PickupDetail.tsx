@@ -15,6 +15,7 @@ import { PurchaseReceipt } from '../components/PurchaseReceipt';
 import { paymentLabel } from '../lib/audit';
 import { mapsUrl } from '../lib/diary';
 import { MergeCustomers } from '../components/MergeCustomers';
+import { showError, showToast } from '../lib/toast';
 
 /** The filters that make sense inside one customer's items */
 type ItemListFilter = Pick<ItemFilter, 'text' | 'category' | 'subcategory' | 'status' | 'unpriced'>;
@@ -142,6 +143,7 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
             onSave={(data) => {
               actions.updatePickup({ ...pickup, ...data });
               setEditing(false);
+              showToast(`✓ Saved ${data.reference}`);
             }}
           />
         </Card>
@@ -277,9 +279,10 @@ export function PickupDetailView({ state, books, actions, id }: { state: AppStat
             onSubmit={(e) => {
               e.preventDefault();
               const amount = parseNumber(costAmount);
-              if (!amount) return;
+              if (!amount) return showError('Enter an amount to add the cost.');
               actions.saveExpense({ date: pickup.date, category: costCategory, description: pickup.reference, amount, pickupId: pickup.id });
               setCostAmount('');
+              showToast(`✓ Added cost: ${money(amount)} - ${costCategory}`);
             }}
           >
             <Select value={costCategory} onChange={(e) => setCostCategory(e.target.value)} className="flex-1">

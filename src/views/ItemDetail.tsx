@@ -4,7 +4,7 @@ import type { AppActions } from '../lib/useAppState';
 import { itemCostMap, listValue, originalListPrice, pence, effectiveStatus } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { goBack, navigate, routeHref } from '../lib/router';
-import { showToast } from '../lib/toast';
+import { showError, showToast } from '../lib/toast';
 import { newId, todayIso } from '../lib/storage';
 import { savePhoto } from '../lib/photos';
 import type { Sale } from '../lib/quantity';
@@ -110,9 +110,13 @@ function ItemDetail({ state, actions, item }: { state: AppState; actions: AppAct
         actions.sellItem(updated, sale, count);
         const left = updated.quantity - count;
         if (left > 0) showToast(`✓ Sold ${count} - ${left} left in stock`);
+        else showToast(`✓ Sold ${updated.name || updated.category} for ${money(sale.soldPrice ?? 0)}`);
       }
+      if (isSold) showToast(`✓ Sale saved: ${money(sale.soldPrice ?? 0)}`);
       rememberChannel(sale.salesChannel);
       setSelling(false);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Couldn't save the sale - nothing was changed. Try again.");
     } finally {
       setSaving(false);
     }
@@ -392,6 +396,7 @@ function PriceCard({ item, actions }: { item: Item; actions: AppActions }) {
             if (parsed === null || parsed === current) return;
             actions.updateItem({ ...item, listPrice: pence(parsed) });
             setNewPrice('');
+            showToast(`✓ Price changed to ${money(pence(parsed))}`);
           }}
         >
           <Input

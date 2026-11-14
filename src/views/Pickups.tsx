@@ -11,6 +11,7 @@ import { kg, money, parseNumber, percent, shortDate } from '../lib/format';
 import { navigate, routeHref } from '../lib/router';
 import { newId, todayIso } from '../lib/storage';
 import { Button, Card, Empty, Field, Input, PageHeader, TextArea } from '../components/ui';
+import { showError, showToast } from '../lib/toast';
 
 /** Tells the pickup page to open with quick entry showing */
 export const OPEN_QUICK_ENTRY_KEY = 'cash4stuff-open-quick-entry';
@@ -107,8 +108,15 @@ export function PickupForm({
         setSaving(true);
         let signaturePhotoId = initial?.signaturePhotoId ?? null;
         if (signature) {
-          signaturePhotoId = newId();
-          await savePhoto(signaturePhotoId, signature, false);
+          try {
+            signaturePhotoId = newId();
+            await savePhoto(signaturePhotoId, signature, false);
+          } catch (err) {
+            // Used to fail silently and leave the button stuck on saving.
+            setSaving(false);
+            showError(`Couldn't save the signature, so the pickup wasn't saved. ${err instanceof Error ? err.message : ''}`.trim());
+            return;
+          }
         }
         if (payment) localStorage.setItem(PAYMENT_KEY, payment);
         onSave(
@@ -309,6 +317,7 @@ export function PickupsView({ state, books, actions }: { state: AppState; books:
               const pickup = actions.addPickup(data);
               if (booking) actions.completeBooking(booking.id, pickup.id);
               setAdding(false);
+              showToast(`✓ Added ${data.handover === 'dropoff' ? 'drop-off' : 'pickup'}: ${data.reference} - ${money(pickup.amountPaid)}`);
               if (next === 'done') return;
               if (next === 'quick') {
                 sessionStorage.setItem(OPEN_QUICK_ENTRY_KEY, pickup.id);

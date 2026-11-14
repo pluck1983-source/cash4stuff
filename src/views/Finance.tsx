@@ -7,6 +7,7 @@ import { recordsZip } from '../lib/records';
 import { loadPhotoBlob } from '../lib/photos';
 import { EXPENSE_BOX_LABELS, RATES, mtdNote, taxEstimate, taxYearLedgerCsv, taxYearsWithData, tradingSummary } from '../lib/tax';
 import { Button, Card, Field, Input, PageHeader, Select, Stat } from '../components/ui';
+import { showError, showToast } from '../lib/toast';
 
 function Row({ label, value, strong = false, muted = false }: { label: string; value: string; strong?: boolean; muted?: boolean }) {
   return (
@@ -161,8 +162,9 @@ export function FinanceView({ state, books, actions }: { state: AppState; books:
               onSubmit={(e) => {
                 e.preventDefault();
                 const pay = parseNumber(grossPay);
-                if (pay === null) return;
+                if (pay === null) return showError('Enter the pay to add it.');
                 actions.saveEmployment({ taxYear: year.id, employer: employer.trim(), grossPay: pay, taxPaid: parseNumber(taxPaid) ?? 0 });
+                showToast(`✓ Added job: ${employer.trim() || 'Employer'} - ${money(pay)}`);
                 setEmployer('');
                 setGrossPay('');
                 setTaxPaid('');

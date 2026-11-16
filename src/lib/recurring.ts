@@ -71,6 +71,7 @@ export function postDueRecurring(state: AppState, today: string): AppState {
         recurringId: plan.id,
         paymentMethod: '',
         attachmentIds: [],
+        attachmentHashes: {},
         // The plan's own timestamp, so two devices posting the same payment produce identical records.
         updatedAt: plan.updatedAt,
         createdAt: plan.updatedAt,

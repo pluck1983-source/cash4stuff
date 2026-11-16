@@ -227,6 +227,12 @@ export interface Expense extends Audited {
   paymentMethod: PaymentMethod;
   /** Photos of receipts/invoices, kept in the photo store */
   attachmentIds: string[];
+  /**
+   * SHA-256 of each attachment file exactly as it was picked, by attachment
+   * id, so the same receipt uploaded again can be spotted. Missing for files
+   * added before this was recorded.
+   */
+  attachmentHashes: Record<string, string>;
   updatedAt: string;
 }
 

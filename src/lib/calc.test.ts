@@ -141,7 +141,7 @@ describe('pickupStats', () => {
         item({ listPrice: null, status: 'in_stock' }),
         item({ pickupId: 'other', status: 'sold', soldPrice: 100, soldDate: '2026-03-21' }),
       ],
-      expenses: [{ id: 'e1', date: '2026-03-10', category: 'Fuel', description: '', amount: 5, pickupId: 'p1', recurringId: null, paymentMethod: '', attachmentIds: [], updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] }],
+      expenses: [{ id: 'e1', date: '2026-03-10', category: 'Fuel', description: '', amount: 5, pickupId: 'p1', recurringId: null, paymentMethod: '', attachmentIds: [], attachmentHashes: {}, updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] }],
     });
     const s = pickupStats(state, p);
     expect(s.stockCost).toBe(15);
@@ -166,8 +166,8 @@ describe('totals', () => {
       item({ pickupId: 'p2', status: 'sold', soldPrice: 9, soldDate: '2025-12-20' }),
     ],
     expenses: [
-      { id: 'e1', date: '2026-03-01', category: 'Rent', description: '', amount: 50, pickupId: null, recurringId: null, paymentMethod: '', attachmentIds: [], updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] },
-      { id: 'e2', date: '2025-11-01', category: 'Fuel', description: '', amount: 10, pickupId: null, recurringId: null, paymentMethod: '', attachmentIds: [], updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] },
+      { id: 'e1', date: '2026-03-01', category: 'Rent', description: '', amount: 50, pickupId: null, recurringId: null, paymentMethod: '', attachmentIds: [], attachmentHashes: {}, updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] },
+      { id: 'e2', date: '2025-11-01', category: 'Fuel', description: '', amount: 10, pickupId: null, recurringId: null, paymentMethod: '', attachmentIds: [], attachmentHashes: {}, updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] },
     ],
     otherIncome: [{ id: 'o1', date: '2026-03-02', kind: 'bulk', buyer: '', weightKg: null, paymentMethod: '', description: 'Bulk lot', amount: 5, pickupId: null, updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] }],
   });

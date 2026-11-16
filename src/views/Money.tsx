@@ -7,7 +7,9 @@ import type { AppActions } from '../lib/useAppState';
 import { PERIOD_LABELS, expensesByCategory, inPeriod, periodFor, type PeriodKey } from '../lib/calc';
 import { money, parseNumber, shortDate } from '../lib/format';
 import { newId, todayIso } from '../lib/storage';
-import { savePhoto } from '../lib/photos';
+import { photoFingerprint, savePhoto } from '../lib/photos';
+import { costsSameDateAmount, costsWithFile } from '../lib/receiptDuplicates';
+import { DuplicateReceiptCheck } from '../components/DuplicateReceiptCheck';
 import { EvidenceThumb } from '../components/Photo';
 import { mustKeep, prepareEvidence, retainUntil } from '../lib/evidence';
 import { StorageAndInsurance } from '../components/StorageAndInsurance';
@@ -39,6 +41,8 @@ interface Draft {
   weight: string;
   rate: string;
   attachmentIds: string[];
+  /** Fingerprints of files picked in this form, by attachment id */
+  attachmentHashes: Record<string, string>;
 }
 
 const WEIGHED: IncomeKind[] = ['rag', 'charity'];
@@ -56,7 +60,7 @@ function lastRate(kind: IncomeKind): string {
 }
 
 function blankDraft(category: string): Draft {
-  return { date: todayIso(), category, description: '', amount: '', pickupId: '', repeat: 'once', endDate: '', introAmount: '', introPeriods: '', paymentMethod: '', kind: 'rag', buyer: '', weight: '', rate: lastRate('rag'), attachmentIds: [] };
+  return { date: todayIso(), category, description: '', amount: '', pickupId: '', repeat: 'once', endDate: '', introAmount: '', introPeriods: '', paymentMethod: '', kind: 'rag', buyer: '', weight: '', rate: lastRate('rag'), attachmentIds: [], attachmentHashes: {} };
 }
 
 export const INCOME_KIND_LABELS: Record<IncomeKind, string> = { rag: 'Rag merchant', charity: 'Charity bins', bulk: 'Bulk lot', other: 'Other' };
@@ -109,6 +113,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
       const shop = draft.description.trim();
       const kept = lines.filter((l) => l.include && parseNumber(l.amount) !== null);
       if (kept.length === 0) return showError('Nothing to add - tick at least one line with an amount.');
+      if (!confirmNotDuplicate(kept.map((l) => parseNumber(l.amount) ?? 0))) return;
       const ids: string[] = [];
       // Each business line is its own cost (so it lands under its own type), sharing the receipt photo.
       for (const l of kept) {
@@ -125,6 +130,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
           recurringId: null,
           paymentMethod: draft.paymentMethod,
           attachmentIds: draft.attachmentIds,
+          attachmentHashes: draft.attachmentHashes,
         });
       }
       try {
@@ -161,10 +167,19 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
       confirmSaved(`${draft.planId ? 'Saved' : 'Set up'} ${draft.repeat} cost: ${money(amount)} - ${label}`, [], draft.date);
       return;
     }
+    if (tab === 'costs' && !confirmNotDuplicate([amount])) return;
     // A new entry gets its id here so it can be highlighted in the list.
     const id = draft.id ?? newId();
     if (tab === 'costs')
-      actions.saveExpense({ ...base, id, category: draft.category, recurringId: draft.recurringId ?? null, paymentMethod: draft.paymentMethod, attachmentIds: draft.attachmentIds });
+      actions.saveExpense({
+        ...base,
+        id,
+        category: draft.category,
+        recurringId: draft.recurringId ?? null,
+        paymentMethod: draft.paymentMethod,
+        attachmentIds: draft.attachmentIds,
+        attachmentHashes: draft.attachmentHashes,
+      });
     else {
       try {
         if (WEIGHED.includes(draft.kind) && draft.rate) localStorage.setItem(rateKey(draft.kind), draft.rate);
@@ -190,7 +205,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
       amount: String(r.amount),
       pickupId: r.pickupId ?? '',
       paymentMethod: r.paymentMethod,
-      ...('kind' in r ? { kind: r.kind, buyer: r.buyer, weight: r.weightKg !== null ? String(r.weightKg) : '', rate: '' } : { attachmentIds: r.attachmentIds }),
+      ...('kind' in r ? { kind: r.kind, buyer: r.buyer, weight: r.weightKg !== null ? String(r.weightKg) : '', rate: '' } : { attachmentIds: r.attachmentIds, attachmentHashes: r.attachmentHashes }),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -214,6 +229,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
       weight: '',
       rate: '',
       attachmentIds: [],
+      attachmentHashes: {},
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -226,19 +242,60 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
     setDraft({ ...draft, weight, rate, amount });
   }
 
+  /** Names a cost in a warning, e.g. "Fuel · Shell, 3 Nov, £40.00" */
+  function describeCost(e: Expense): string {
+    return `${e.category}${e.description ? ` · ${e.description}` : ''}, ${shortDate(e.date)}, ${money(e.amount)}`;
+  }
+
+  /**
+   * Warns (never blocks) when this file is already on a cost, or was already
+   * added to this form. Returns false if the person chose not to add it.
+   */
+  function confirmNewFile(hash: string | null, name: string, hashesSoFar: Record<string, string>): boolean {
+    if (!hash) return true;
+    const elsewhere = costsWithFile(state.expenses, hash, draft.id ?? null);
+    const here = Object.values(hashesSoFar).includes(hash);
+    if (!elsewhere.length && !here) return true;
+    const where = [...elsewhere.slice(0, 3).map(describeCost), ...(here ? ['this cost (already added above)'] : [])];
+    return window.confirm(`${name} looks like a duplicate - the exact same file is already on:\n\n${where.map((w) => `• ${w}`).join('\n')}\n\nAdd it anyway?`);
+  }
+
+  /** Warns when a live cost already has the same date and amount. Returns false if the person chose not to save. */
+  function confirmNotDuplicate(amounts: number[]): boolean {
+    const saved = draft.id ? state.expenses.find((e) => e.id === draft.id) : undefined;
+    // Re-saving a cost without changing its date or amount doesn't ask again.
+    if (saved && saved.date === draft.date && amounts.length === 1 && Math.round(saved.amount * 100) === Math.round(amounts[0] * 100)) return true;
+    const same = [...new Set(amounts)]
+      .flatMap((a) => costsSameDateAmount(state.expenses, draft.date, a, draft.id ?? null))
+      // Other lines split off the same receipt share its attachment - not a duplicate.
+      .filter((e) => !e.attachmentIds.some((id) => draft.attachmentIds.includes(id)));
+    if (!same.length) return true;
+    return window.confirm(
+      `There's already a cost on ${shortDate(draft.date)} for the same amount:\n\n${same
+        .slice(0, 3)
+        .map((e) => `• ${describeCost(e)}`)
+        .join('\n')}\n\nIs this a different receipt? OK saves it, Cancel goes back.`,
+    );
+  }
+
   async function attach(files: FileList | null) {
     if (!files?.length) return;
     const ids: string[] = [];
+    const hashes: Record<string, string> = { ...draft.attachmentHashes };
     for (const file of Array.from(files)) {
       try {
+        // Fingerprinting is a nice-to-have; a device that can't do it still gets the file.
+        const hash = await photoFingerprint(file).catch(() => null);
+        if (!confirmNewFile(hash, file.name || 'This file', hashes)) continue;
         const id = newId();
         await savePhoto(id, await prepareEvidence(file), false);
         ids.push(id);
+        if (hash) hashes[id] = hash;
       } catch (err) {
         window.alert(err instanceof Error ? err.message : `Couldn't add ${file.name}`);
       }
     }
-    setDraft((d) => ({ ...d, attachmentIds: [...d.attachmentIds, ...ids] }));
+    setDraft((d) => ({ ...d, attachmentIds: [...d.attachmentIds, ...ids], attachmentHashes: { ...d.attachmentHashes, ...hashes } }));
   }
 
   const editing = Boolean(draft.id || draft.planId);
@@ -365,10 +422,13 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
                 onChange={setLines}
                 categories={state.settings.expenseCategories}
                 defaultCategory={splitCategory}
-                onPhoto={async (photo) => {
+                onPhoto={async (photo, original) => {
+                  const hash = await photoFingerprint(original).catch(() => null);
+                  if (!confirmNewFile(hash, 'This receipt', draft.attachmentHashes)) return false;
                   const id = newId();
                   await savePhoto(id, photo, false);
-                  setDraft((d) => ({ ...d, attachmentIds: [...d.attachmentIds, id] }));
+                  setDraft((d) => ({ ...d, attachmentIds: [...d.attachmentIds, id], attachmentHashes: hash ? { ...d.attachmentHashes, [id]: hash } : d.attachmentHashes }));
+                  return true;
                 }}
               />
             )}
@@ -444,7 +504,11 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
                             )
                           )
                             return;
-                          setDraft({ ...draft, attachmentIds: draft.attachmentIds.filter((x) => x !== id) });
+                          setDraft({
+                            ...draft,
+                            attachmentIds: draft.attachmentIds.filter((x) => x !== id),
+                            attachmentHashes: Object.fromEntries(Object.entries(draft.attachmentHashes).filter(([k]) => k !== id)),
+                          });
                         }}
                       >
                         ✕
@@ -512,6 +576,10 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
               })}
             </ul>
           </Card>
+        )}
+
+        {tab === 'costs' && (
+          <DuplicateReceiptCheck expenses={state.expenses} describe={describeCost} onEdit={edit} className="min-w-0 lg:order-3 lg:col-start-3" />
         )}
 
         <div className="min-w-0 lg:order-1 lg:col-span-2 lg:row-span-2">

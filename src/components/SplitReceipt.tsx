@@ -20,8 +20,8 @@ export function SplitReceipt({
   onChange: (lines: ReceiptLine[]) => void;
   categories: string[];
   defaultCategory: string;
-  /** The receipt photo, so it's kept with the costs */
-  onPhoto: (photo: Blob) => Promise<void>;
+  /** The receipt photo (shrunk, and as picked), so it's kept with the costs. False = not wanted (e.g. a duplicate), so don't read it. */
+  onPhoto: (photo: Blob, original: File) => Promise<boolean>;
 }) {
   const [reading, setReading] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export function SplitReceipt({
     setReading(0);
     try {
       const photo = await compressImage(file);
-      await onPhoto(photo);
+      if (!(await onPhoto(photo, file))) return;
       const { readText } = await import('../lib/ocr');
       // Read the full-size original - small print needs every pixel.
       const parsed = parseReceiptText(await readText(file, setReading));

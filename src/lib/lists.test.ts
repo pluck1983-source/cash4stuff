@@ -41,7 +41,7 @@ function state(): AppState {
     ...s,
     settings: { ...s.settings, categories: ['Tops', 'Shoes', 'Bags'], subcategories: { Tops: ['T-shirts', 'Shirts'] }, expenseTaxBoxes: { Fuel: 'travel' } },
     items: [item('a', 'Tops', 'T-shirts'), item('b', 'Tops'), item('c', 'Shoes')],
-    expenses: [{ id: 'e1', date: '2026-09-01', category: 'Fuel', description: '', amount: 10, pickupId: null, recurringId: null, paymentMethod: '', attachmentIds: [], updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] }],
+    expenses: [{ id: 'e1', date: '2026-09-01', category: 'Fuel', description: '', amount: 10, pickupId: null, recurringId: null, paymentMethod: '', attachmentIds: [], attachmentHashes: {}, updatedAt: T, createdAt: T, voidedAt: null, voidReason: '', history: [] }],
   };
 }
 

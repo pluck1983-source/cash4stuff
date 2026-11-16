@@ -9,6 +9,7 @@ import { currentUnits, pastUnits, policiesForUnit, policyWarnings, uninsuredUnit
 import { isHeld } from '../lib/calc';
 import { Button, Card, Empty, Field, Input, Select, TextArea } from './ui';
 import { EvidenceThumb } from './Photo';
+import { showToast } from '../lib/toast';
 
 type UnitMode = { kind: 'add' } | { kind: 'edit'; unit: StorageUnit } | { kind: 'move'; from: StorageUnit };
 
@@ -180,6 +181,7 @@ export function StorageAndInsurance({ state, actions }: { state: AppState; actio
       window.alert(`Moved to ${unitLabel(input)}.${r.movedItems ? ` ${r.movedItems} unsold item records now show "${area}" - update racks and boxes as you unpack.` : ''} The old unit's rent stops the day before ${shortDate(input.startDate)}.${told}`);
     } else {
       actions.saveStorageUnit({ ...input, id: unitMode.kind === 'edit' ? unitMode.unit.id : undefined }, rent);
+      showToast(`✓ ${unitMode.kind === 'edit' ? 'Saved' : 'Added'} storage unit: ${unitLabel(input)}${rent ? ` - ${money(rent.amount)} ${rent.frequency}` : ''}`);
     }
     setUnitMode(null);
   }
@@ -203,6 +205,7 @@ export function StorageAndInsurance({ state, actions }: { state: AppState; actio
       documentIds: policy.documentIds,
       notes: policy.notes.trim(),
     });
+    showToast(`✓ ${policy.id ? 'Saved' : 'Added'} insurance: ${policy.insurer.trim() || 'policy'}${policy.policyNumber.trim() ? ` ${policy.policyNumber.trim()}` : ''}`);
     setPolicy(null);
   }
 

@@ -5,6 +5,7 @@ import type { AppActions } from '../lib/useAppState';
 import { money, parseNumber } from '../lib/format';
 import { todayIso } from '../lib/storage';
 import { Button, Card, Input, Select } from './ui';
+import { showError, showToast } from '../lib/toast';
 
 const KEY = 'cash4stuff-quick-entry-defaults';
 
@@ -57,7 +58,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
   function save() {
     const listPrice = parseNumber(price);
     const sold = d.status === 'sold' ? parseNumber(soldPrice) : null;
-    if (d.status === 'sold' && sold === null) return;
+    if (d.status === 'sold' && sold === null) return showError('Enter what it sold for.');
     const quantity = Math.max(1, Math.floor(Number(qty)) || 1);
     // Stock from a past pickup counts as in stock since the pickup, not since today.
     const backdated = pickup.date < todayIso() ? `${pickup.date}T12:00:00.000Z` : undefined;
@@ -85,6 +86,7 @@ export function QuickEntry({ state, actions, pickup }: { state: AppState; action
       backdated,
     );
     setCount((c) => c + quantity);
+    showToast(`✓ Added ${name.trim() || d.category}${quantity > 1 ? ` ×${quantity}` : ''}${listPrice !== null ? ` - ${money(listPrice)}` : ''}`);
     setName('');
     setPrice('');
     setQty('1');

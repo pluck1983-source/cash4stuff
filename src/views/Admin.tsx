@@ -3,6 +3,7 @@ import type { AppState } from '../lib/types';
 import type { AppActions } from '../lib/useAppState';
 import { listValues, usageCount, type ListKind } from '../lib/lists';
 import { Button, Card, Input, PageHeader, Select } from '../components/ui';
+import { showToast } from '../lib/toast';
 
 const SECTIONS: { kind: Exclude<ListKind, 'subcategories'>; title: string; hint: string; noun: string }[] = [
   { kind: 'categories', title: 'Stock categories', hint: 'Tap a category to manage its types (e.g. Tops → T-shirts).', noun: 'item' },
@@ -66,6 +67,7 @@ function ListEditor({ state, actions, kind, noun, parent }: { state: AppState; a
           if (!adding.trim()) return;
           if (values.includes(adding.trim())) return window.alert(`"${adding.trim()}" is already in the list.`);
           actions.editList({ kind, op: 'add', name: adding, parent });
+          showToast(`✓ Added "${adding.trim()}"`);
           setAdding('');
         }}
       >

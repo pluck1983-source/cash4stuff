@@ -21,7 +21,7 @@ import { FinanceView } from './views/Finance';
 import { liveState } from './lib/audit';
 import { BottomTabs, NAV, NavIcon, TAB_SECTIONS, type Section } from './components/Nav';
 import { useNavOrder } from './lib/navOrder';
-import { useToast } from './lib/toast';
+import { dismissToast, useToast } from './lib/toast';
 import { AdminView } from './views/Admin';
 import { DiaryView } from './views/Diary';
 import { TripBar } from './components/TripBar';
@@ -157,10 +157,18 @@ export default function App() {
 
   const toast = toastMessage && (
     <div
-      role="status"
+      role={toastMessage.kind === 'error' ? 'alert' : 'status'}
       className="vv-bottom pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabs-h)+1rem)] z-50 flex justify-center px-4 lg:bottom-6 lg:left-56"
     >
-      <div className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900">{toastMessage}</div>
+      <button
+        type="button"
+        onClick={dismissToast}
+        className={`pointer-events-auto max-w-md rounded-2xl px-4 py-2.5 text-left text-sm font-medium shadow-lg ${
+          toastMessage.kind === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+        }`}
+      >
+        {toastMessage.message}
+      </button>
     </div>
   );
 

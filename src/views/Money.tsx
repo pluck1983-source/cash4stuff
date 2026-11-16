@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AppState, Expense, IncomeKind, OtherIncome, PaymentMethod, RecurringCost, RecurringFrequency } from '../lib/types';
 import { paymentLabel } from '../lib/audit';
 import { PaymentChips, VoidedNote, askVoidReason } from '../components/Records';
@@ -14,6 +14,7 @@ import { StorageAndInsurance } from '../components/StorageAndInsurance';
 import { SplitReceipt } from '../components/SplitReceipt';
 import { blankLine, businessTotal, type ReceiptLine } from '../lib/receiptLines';
 import { Button, Card, Chips, Empty, Field, Input, PageHeader, Select } from '../components/ui';
+import { showError, showToast } from '../lib/toast';
 
 type Tab = 'costs' | 'income' | 'storage';
 type Repeat = 'once' | RecurringFrequency;
@@ -62,6 +63,14 @@ export const INCOME_KIND_LABELS: Record<IncomeKind, string> = { rag: 'Rag mercha
 
 const REPEAT_LABELS: Record<Repeat, string> = { once: 'One-off', weekly: 'Weekly', monthly: 'Monthly' };
 
+/** What was just saved - kept on screen so the cleared form doesn't look like nothing happened */
+interface LastSaved {
+  text: string;
+  /** Rows to highlight in the list */
+  ids: string[];
+  date: string;
+}
+
 export function MoneyView({ state, books, actions }: { state: AppState; books: AppState; actions: AppActions }) {
   const [tab, setTab] = useState<Tab>('costs');
   const [periodKey, setPeriodKey] = useState<PeriodKey>('month');
@@ -69,7 +78,19 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
   const [draft, setDraft] = useState<Draft>(() => blankDraft(defaultCategory));
   /** Set while a receipt is being entered line by line */
   const [lines, setLines] = useState<ReceiptLine[] | null>(null);
+  const [lastSaved, setLastSaved] = useState<LastSaved | null>(null);
+  const savedRef = useRef<HTMLDivElement>(null);
+  // The form is long and clears after a save, so bring the confirmation into view
+  // rather than leaving a blank form on screen.
+  useEffect(() => {
+    if (lastSaved) savedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [lastSaved]);
   const period = periodFor(periodKey);
+
+  function confirmSaved(text: string, ids: string[], date: string) {
+    setLastSaved({ text, ids, date });
+    showToast(`✓ ${text}`);
+  }
 
   const pickups = [...state.pickups].sort((a, b) => b.date.localeCompare(a.date));
   const pickupName = (id: string | null) => (id ? (state.pickups.find((p) => p.id === id)?.reference ?? '') : '');
@@ -87,11 +108,15 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
     if (lines && tab === 'costs') {
       const shop = draft.description.trim();
       const kept = lines.filter((l) => l.include && parseNumber(l.amount) !== null);
-      if (kept.length === 0) return;
+      if (kept.length === 0) return showError('Nothing to add - tick at least one line with an amount.');
+      const ids: string[] = [];
       // Each business line is its own cost (so it lands under its own type), sharing the receipt photo.
       for (const l of kept) {
         const what = l.description.trim();
+        const id = newId();
+        ids.push(id);
         actions.saveExpense({
+          id,
           date: draft.date,
           description: [shop, what].filter(Boolean).join(': '),
           amount: parseNumber(l.amount) ?? 0,
@@ -109,10 +134,13 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
       }
       setLines(null);
       setDraft({ ...blankDraft(draft.category), date: draft.date });
+      const sum = kept.reduce((t, l) => t + (parseNumber(l.amount) ?? 0), 0);
+      confirmSaved(`Added ${kept.length} cost${kept.length === 1 ? '' : 's'}: ${money(sum)}${shop ? ` - ${shop}` : ''}`, ids, draft.date);
       return;
     }
     const amount = parseNumber(draft.amount);
-    if (amount === null) return;
+    if (amount === null) return showError('Enter an amount to save.');
+    const label = [tab === 'costs' ? draft.category : INCOME_KIND_LABELS[draft.kind], draft.description.trim()].filter(Boolean).join(' - ');
     const base = { date: draft.date, description: draft.description.trim(), amount, pickupId: draft.pickupId || null };
     if (repeating) {
       const introAmount = parseNumber(draft.introAmount);
@@ -130,15 +158,24 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
         pickupId: base.pickupId,
       });
       setDraft(blankDraft(draft.category));
+      confirmSaved(`${draft.planId ? 'Saved' : 'Set up'} ${draft.repeat} cost: ${money(amount)} - ${label}`, [], draft.date);
       return;
     }
+    // A new entry gets its id here so it can be highlighted in the list.
+    const id = draft.id ?? newId();
     if (tab === 'costs')
-      actions.saveExpense({ ...base, id: draft.id, category: draft.category, recurringId: draft.recurringId ?? null, paymentMethod: draft.paymentMethod, attachmentIds: draft.attachmentIds });
+      actions.saveExpense({ ...base, id, category: draft.category, recurringId: draft.recurringId ?? null, paymentMethod: draft.paymentMethod, attachmentIds: draft.attachmentIds });
     else {
-      if (WEIGHED.includes(draft.kind) && draft.rate) localStorage.setItem(rateKey(draft.kind), draft.rate);
-      actions.saveIncome({ ...base, id: draft.id, kind: draft.kind, buyer: draft.buyer.trim(), weightKg: parseNumber(draft.weight), paymentMethod: draft.paymentMethod });
+      try {
+        if (WEIGHED.includes(draft.kind) && draft.rate) localStorage.setItem(rateKey(draft.kind), draft.rate);
+      } catch {
+        // Remembering the rate is a convenience only - never block the save.
+      }
+      actions.saveIncome({ ...base, id, kind: draft.kind, buyer: draft.buyer.trim(), weightKg: parseNumber(draft.weight), paymentMethod: draft.paymentMethod });
     }
     setDraft({ ...blankDraft(draft.category), date: draft.date });
+    const what = tab === 'costs' ? 'cost' : 'income';
+    confirmSaved(`${draft.id ? `Saved ${what}` : `Added ${what}`}: ${money(amount)} - ${label}`, [id], draft.date);
   }
 
   function edit(r: Expense | OtherIncome) {
@@ -228,6 +265,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
               setTab(t);
               setDraft(blankDraft(defaultCategory));
               setLines(null);
+              setLastSaved(null);
             }}
             className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium sm:flex-none sm:px-4 sm:text-sm ${tab === t ? 'bg-brand-600 text-white' : 'text-slate-600 dark:text-slate-300'}`}
           >
@@ -242,6 +280,21 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title={draft.planId ? 'Edit repeating cost' : draft.id ? 'Edit entry' : tab === 'costs' ? 'Add a cost' : 'Add income'} className="min-w-0 lg:order-2">
+          {lastSaved && !editing && (
+            <div ref={savedRef} role="status" className="mb-4 scroll-mt-24 flex items-start gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+              <span className="min-w-0 flex-1">
+                ✓ {lastSaved.text}
+                {!inPeriod(lastSaved.date, period) && (
+                  <span className="block text-xs">
+                    Dated {shortDate(lastSaved.date)}, so it's not in the list for {PERIOD_LABELS[periodKey].toLowerCase()} - change the period below to see it.
+                  </span>
+                )}
+              </span>
+              <button type="button" aria-label="Dismiss" className="shrink-0 text-emerald-700 dark:text-emerald-300" onClick={() => setLastSaved(null)}>
+                ✕
+              </button>
+            </div>
+          )}
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -490,7 +543,7 @@ export function MoneyView({ state, books, actions }: { state: AppState; books: A
               {rows.map((r) => {
                 const voided = r.voidedAt !== null;
                 return (
-                  <li key={r.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <li key={r.id} className={`flex items-center gap-3 px-3 py-2.5 ${lastSaved?.ids.includes(r.id) ? 'bg-emerald-50 dark:bg-emerald-950' : ''}`}>
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => !voided && edit(r)} disabled={voided}>
                       <div className={`truncate text-sm font-medium text-slate-900 dark:text-slate-100 ${voided ? 'line-through opacity-60' : ''}`}>
                         {'category' in r ? r.category : INCOME_KIND_LABELS[r.kind]}

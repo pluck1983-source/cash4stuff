@@ -9,6 +9,7 @@ import { latestOpenPickupId } from '../lib/sellers';
 import { savePhoto } from '../lib/photos';
 import { Button, LinkButton, PageHeader } from '../components/ui';
 import { ItemEditor, draftListPrice, type ItemDraft } from '../components/ItemEditor';
+import { showToast } from '../lib/toast';
 
 function freshDraft(state: AppState, pickupId: string | null): ItemDraft {
   const last = readLast();
@@ -73,6 +74,8 @@ export function AddItemView({ state, actions, pickupId }: { state: AppState; act
         notes: draft.notes.trim(),
       });
       localStorage.setItem(LAST_KEY, JSON.stringify({ category: draft.category, subcategory: draft.subcategory, gender: draft.gender, location: draft.location } satisfies LastDefaults));
+      const label = `${draft.name.trim() || draft.category}${draft.quantity > 1 ? ` ×${draft.quantity}` : ''}${listPrice !== null ? ` - ${money(listPrice)}` : ''}`;
+      showToast(`✓ Added ${label}`);
       if (another) {
         setAdded((a) => [{ name: draft.name.trim() || draft.category, price: listPrice, quantity: draft.quantity }, ...a]);
         // A write-off is decided item by item, so it never carries over to the next one.

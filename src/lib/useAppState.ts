@@ -9,6 +9,7 @@ import { mergeCustomers, setResolved } from './sellers';
 import { loadState, newId, saveState, todayIso } from './storage';
 import { endUnit, moveToNewUnit, savePolicy, saveUnit, type MoveOptions, type Rent, type UnitInput } from './storageUnits';
 import type { InsurancePolicy } from './types';
+import { showError } from './toast';
 
 /** Item fields the photo AI may never change - write-offs and sales are a person's decision */
 export const AI_FORBIDDEN = ['status', 'soldPrice', 'soldDate', 'salesChannel', 'saleCosts', 'listPrice', 'quantity'] as const;
@@ -51,12 +52,17 @@ export function useAppState() {
     stateRef.current = state;
   }, [state]);
 
+  // Said once per run of failures, not on every change, so it doesn't nag.
+  const saveFailed = useRef(false);
   useEffect(() => {
     try {
       saveState(state);
+      saveFailed.current = false;
     } catch {
-      // Storage full - photos are kept separately, so this would take a
-      // very large amount of data; the cloud copy still has everything.
+      // Storage full (or blocked, e.g. private browsing). This used to be silent,
+      // which made a save look like it had worked - so say so.
+      if (!saveFailed.current) showError("Couldn't save on this phone (its storage is full or blocked). Keep the app open until it has synced to Drive.");
+      saveFailed.current = true;
     }
   }, [state]);
 

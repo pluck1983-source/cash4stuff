@@ -56,6 +56,21 @@ interface DriveFile {
   version: string;
   parents?: string[];
   owners?: { emailAddress?: string; displayName?: string }[];
+  appProperties?: Record<string, string>;
+  name?: string;
+  mimeType?: string;
+  ownedByMe?: boolean;
+}
+
+/**
+ * Marks the copies made by "Move data into this account". When the old
+ * originals are still shared with the account, both turn up in a search by
+ * name, and the marked copy always wins - so nothing writes to the old ones.
+ */
+const HOME_PROP = 'wtwHome';
+
+function homeFirst(files: DriveFile[]): DriveFile[] {
+  return [...files.filter((f) => f.appProperties?.[HOME_PROP] === '1'), ...files.filter((f) => f.appProperties?.[HOME_PROP] !== '1')];
 }
 
 function redirectUri(): string {
@@ -180,19 +195,45 @@ function q(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
-async function listFiles(query: string, fields: string, orderBy?: string): Promise<DriveFile[]> {
+async function listFiles(query: string, fields: string, orderBy?: string, pageSize = 10, pageToken?: string): Promise<DriveFile[]> {
+  return (await listPage(query, fields, orderBy, pageSize, pageToken)).files;
+}
+
+async function listPage(query: string, fields: string, orderBy?: string, pageSize = 10, pageToken?: string): Promise<{ files: DriveFile[]; nextPageToken?: string }> {
   const params = new URLSearchParams({
     q: `${query} and trashed = false`,
-    fields: `files(${fields})`,
+    fields: `nextPageToken,files(${fields})`,
     // My Drive plus everything shared with this account.
     corpora: 'user',
     includeItemsFromAllDrives: 'true',
     supportsAllDrives: 'true',
-    pageSize: '10',
+    pageSize: String(pageSize),
   });
   if (orderBy) params.set('orderBy', orderBy);
+  if (pageToken) params.set('pageToken', pageToken);
   const response = await driveFetch(`https://www.googleapis.com/drive/v3/files?${params}`);
-  return ((await response.json()) as { files: DriveFile[] }).files;
+  return (await response.json()) as { files: DriveFile[]; nextPageToken?: string };
+}
+
+/** Every file directly inside a folder (follows Drive's pages) */
+async function listFolder(folderId: string, fields: string): Promise<DriveFile[]> {
+  const all: DriveFile[] = [];
+  let token: string | undefined;
+  do {
+    const page = await listPage(`${q(folderId)} in parents`, fields, undefined, 1000, token);
+    all.push(...page.files);
+    token = page.nextPageToken;
+  } while (token);
+  return all;
+}
+
+async function copyFile(fileId: string, name: string, parentId: string): Promise<DriveFile> {
+  const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}/copy?supportsAllDrives=true&fields=${FIELDS}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parents: [parentId], appProperties: { [HOME_PROP]: '1' } }),
+  });
+  return (await response.json()) as DriveFile;
 }
 
 async function createFolder(name: string, parentId: string | null): Promise<string> {
@@ -216,8 +257,8 @@ async function ensureDataFolder(): Promise<string> {
 async function ensurePhotosFolder(): Promise<string> {
   if (photosFolderId) return photosFolderId;
   const parent = dataFolderId ?? (await ensureDataFolder());
-  const existing = await listFiles(`name = ${q(PHOTOS_FOLDER_NAME)} and mimeType = ${q(FOLDER_MIME)} and ${q(parent)} in parents`, 'id');
-  photosFolderId = existing[0]?.id ?? (await createFolder(PHOTOS_FOLDER_NAME, parent));
+  const existing = await listFiles(`name = ${q(PHOTOS_FOLDER_NAME)} and mimeType = ${q(FOLDER_MIME)} and ${q(parent)} in parents`, 'id,appProperties');
+  photosFolderId = homeFirst(existing)[0]?.id ?? (await createFolder(PHOTOS_FOLDER_NAME, parent));
   return photosFolderId;
 }
 
@@ -232,8 +273,9 @@ async function findPhotoFileId(photoId: string): Promise<string | null> {
   const cached = photoFileIds.get(photoId);
   if (cached) return cached;
   // Photo ids are random UUIDs, so the name alone is unique.
-  const files = await listFiles(`name = ${q(photoFileName(photoId))}`, 'id');
-  const id = files[0]?.id ?? null;
+  const files = await listFiles(`name = ${q(photoFileName(photoId))}`, 'id,appProperties');
+  // After a move both the copy and the old original match - use the copy.
+  const id = homeFirst(files)[0]?.id ?? null;
   if (id) photoFileIds.set(photoId, id);
   return id;
 }
@@ -243,7 +285,7 @@ function toMeta(file: DriveFile): RemoteFileMeta {
   return { id: file.id, modifiedTime: file.modifiedTime, version: file.version, owner: owner?.emailAddress ?? owner?.displayName ?? null };
 }
 
-const FIELDS = 'id,modifiedTime,version,parents,owners(emailAddress,displayName)';
+const FIELDS = 'id,modifiedTime,version,parents,owners(emailAddress,displayName),appProperties';
 
 export const googleDriveProvider: CloudProvider = {
   id: 'google-drive',
@@ -301,7 +343,7 @@ export const googleDriveProvider: CloudProvider = {
 
   async getMeta() {
     const files = await listFiles(`name = ${q(FILE_NAME)}`, FIELDS, 'modifiedTime desc');
-    const file = files[0];
+    const file = homeFirst(files)[0];
     if (!file) return null;
     if (file.parents?.[0] && file.parents[0] !== dataFolderId) {
       dataFolderId = file.parents[0];
@@ -363,6 +405,65 @@ export const googleDriveProvider: CloudProvider = {
     });
     const file = (await response.json()) as { id: string };
     photoFileIds.set(photoId, file.id);
+  },
+
+  async moveDataHere(onProgress) {
+    const files = homeFirst(await listFiles(`name = ${q(FILE_NAME)}`, FIELDS + ',ownedByMe', 'modifiedTime desc'));
+    const isHome = (f: DriveFile) => f.appProperties?.[HOME_PROP] === '1' && f.ownedByMe === true;
+    let home = files.find(isHome);
+    const original = files.find((f) => !isHome(f));
+    if (!original && !home) throw new Error('No Wardrobe to Wallet data was found to move.');
+    if (!home && original?.ownedByMe) throw new Error('The data is already in this account - nothing to move.');
+
+    // 1. The data file: copied once into a new folder in this account's My Drive.
+    if (!home) {
+      const folder = await createFolder(FOLDER_NAME, null);
+      home = await copyFile(original!.id, FILE_NAME, folder);
+    }
+    const homeFolder = home.parents?.[0];
+    if (!homeFolder) throw new Error('The moved data file has no folder.');
+    dataFolderId = homeFolder;
+    photosFolderId = null;
+    photoFileIds.clear();
+
+    // 2. Photos: every file in the old photos folder not already copied. Safe to run
+    //    again if it stops halfway - it carries on where it left off.
+    const newPhotos = await ensurePhotosFolder();
+    const have = new Set((await listFolder(newPhotos, 'name')).map((f) => f.name));
+    let toCopy: { id: string; name: string }[] = [];
+    const oldFolder = original?.parents?.[0];
+    if (oldFolder) {
+      const oldPhotoFolders = (await listFiles(`name = ${q(PHOTOS_FOLDER_NAME)} and mimeType = ${q(FOLDER_MIME)} and ${q(oldFolder)} in parents`, 'id')).map((f) => f.id);
+      for (const folderId of oldPhotoFolders) {
+        const inside = await listFolder(folderId, 'id,name,mimeType');
+        for (const f of inside) if (f.name && f.mimeType !== FOLDER_MIME && !have.has(f.name)) toCopy.push({ id: f.id, name: f.name });
+      }
+    }
+    toCopy = [...new Map(toCopy.map((f) => [f.name, f])).values()];
+    let done = 0;
+    onProgress?.(done, toCopy.length);
+    const queue = [...toCopy];
+    // A few at a time - quicker than one by one, gentle on Drive's rate limits.
+    // If one fails the others stop too, and only then does the error surface,
+    // so nothing is still copying when the person taps "Carry on moving".
+    let failure: unknown = null;
+    await Promise.all(
+      Array.from({ length: 4 }, async () => {
+        for (let next = queue.shift(); next && failure === null; next = queue.shift()) {
+          try {
+            const copy = await copyFile(next.id, next.name, newPhotos);
+            const photoId = next.name.replace(/^photo-/, '').replace(/\.jpg$/, '');
+            photoFileIds.set(photoId, copy.id);
+            done++;
+            onProgress?.(done, toCopy.length);
+          } catch (e) {
+            failure ??= e;
+          }
+        }
+      }),
+    );
+    if (failure !== null) throw failure;
+    return { photosCopied: done, originalOwner: original ? (toMeta(original).owner ?? null) : null };
   },
 
   async downloadPhoto(photoId) {

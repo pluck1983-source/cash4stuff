@@ -123,6 +123,9 @@ export default function App() {
           dataOwner={sync.dataOwner}
           signedIn={sync.status !== 'unconfigured'}
           onSignOut={(wipe) => void signOut(wipe)}
+          onMoveData={sync.moveDataHere}
+          moveProgress={sync.moveProgress}
+          moveUnfinished={sync.moveUnfinished}
         />
       );
       break;

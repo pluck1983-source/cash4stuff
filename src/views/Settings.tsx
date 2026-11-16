@@ -18,6 +18,9 @@ export function SettingsView({
   dataOwner,
   signedIn,
   onSignOut,
+  onMoveData,
+  moveProgress,
+  moveUnfinished,
 }: {
   state: AppState;
   actions: AppActions;
@@ -26,7 +29,11 @@ export function SettingsView({
   dataOwner: string | null;
   signedIn: boolean;
   onSignOut: (wipeDevice: boolean) => void;
+  onMoveData: () => Promise<{ photosCopied: number; originalOwner: string | null } | null>;
+  moveProgress: { done: number; total: number } | null;
+  moveUnfinished: boolean;
 }) {
+  const canMove = Boolean(accountEmail && ((dataOwner && dataOwner !== accountEmail) || moveUnfinished));
   const { settings } = state;
   const [rate, setRate] = useState(String(settings.costPerKg));
   const [step, setStep] = useState(String(settings.weightStepKg));
@@ -197,6 +204,41 @@ export function SettingsView({
             To let someone else use the app: in Google Drive, share the Wardrobe to Wallet folder with their Google account as <strong>Editor</strong>. Their address also
             has to be added as a test user on the app's Google sign-in setup. Unshare the folder to remove their access.
           </p>
+          {canMove && (
+            <div className="mb-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm dark:border-brand-900 dark:bg-brand-950/40">
+              <p className="mb-2 font-semibold">Move the data into this account</p>
+              <p className="mb-2 text-slate-600 dark:text-slate-300">
+                Copies the data and every photo into a new <strong>Wardrobe to Wallet</strong> folder in <strong>{accountEmail}</strong>'s own Google Drive, and the app uses
+                that copy from then on. {dataOwner && dataOwner !== accountEmail ? <>Nothing in {dataOwner}'s Drive is changed or deleted.</> : null} Safe to run again if it
+                stops part way.
+              </p>
+              {moveProgress ? (
+                <p className="font-medium" role="status">
+                  Moving… {moveProgress.total ? `${moveProgress.done} of ${moveProgress.total} photos copied` : 'copying the data'}
+                </p>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={async () => {
+                    if (
+                      !moveUnfinished &&
+                      !window.confirm(
+                        `Move the data into ${accountEmail}'s Google Drive?\n\nKeep the app open until it says it's done. Afterwards, every device should sign in with ${accountEmail} - a device still signed in with another account would keep using the old copy.`,
+                      )
+                    )
+                      return;
+                    const result = await onMoveData();
+                    if (result)
+                      window.alert(
+                        `Done - the data and ${result.photosCopied} photo${result.photosCopied === 1 ? '' : 's'} are now in ${accountEmail}'s Google Drive.${result.originalOwner ? ` The old copy in ${result.originalOwner}'s Drive hasn't been touched; delete it yourself once you're happy.` : ''}`,
+                      );
+                  }}
+                >
+                  {moveUnfinished ? 'Carry on moving' : 'Move data into this account'}
+                </Button>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {

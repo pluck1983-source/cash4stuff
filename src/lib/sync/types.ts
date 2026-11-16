@@ -41,6 +41,13 @@ export interface CloudProvider {
   /** Null if the photo isn't in the cloud (e.g. not uploaded yet from the device that took it) */
   downloadPhoto(photoId: string): Promise<Blob | null>;
   deletePhoto(photoId: string): Promise<void>;
+  /**
+   * Copies the data file and every photo from wherever they are now (e.g.
+   * shared from someone else's account) into a new folder owned by the
+   * signed-in account. Never deletes or changes the originals. Safe to run
+   * again if it stops halfway.
+   */
+  moveDataHere?(onProgress?: (done: number, total: number) => void): Promise<{ photosCopied: number; originalOwner: string | null }>;
   /** True if a usable sign-in exists right now without any redirect */
   hasToken(): boolean;
   /**

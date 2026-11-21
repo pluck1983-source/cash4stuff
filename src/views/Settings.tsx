@@ -201,8 +201,8 @@ export function SettingsView({
             {dataOwner && dataOwner !== accountEmail ? <strong>{dataOwner}</strong> : 'this account'}'s Google Drive.
           </p>
           <p className="mb-3 text-sm text-slate-500">
-            To let someone else use the app: in Google Drive, share the Wardrobe to Wallet folder with their Google account as <strong>Editor</strong>. Their address also
-            has to be added as a test user on the app's Google sign-in setup. Unshare the folder to remove their access.
+            Everyone who uses the app signs in with this one business account. The app can only see the files it made in this Drive - nothing else. Change the
+            account's Google password to stop someone who no longer helps from signing in.
           </p>
           {canMove && (
             <div className="mb-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm dark:border-brand-900 dark:bg-brand-950/40">

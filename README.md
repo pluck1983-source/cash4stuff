@@ -209,20 +209,28 @@ our own: the browser talks straight to Google.
 
 **Where this app's Google sign-in is set up:**
 
-- **Google account:** the owner's personal Gmail account - the same one as
-  the Tax Planner (not the Wardrobe to Wallet account).
-- **Google Cloud project:** **Tax Planner** (project ID `tax-planner-510419`).
-  This app has no project of its own.
-- **OAuth client:** the Tax Planner's web client, ID in `.env`. Changing that
-  client's settings affects both apps.
-- The **David's Apps** and **Stock List** projects in the same account are
-  not used by this app. The till uses its own **Till** project in the
-  Wardrobe to Wallet account.
+- **Google account:** the owner's personal Gmail account (not the Wardrobe
+  to Wallet account).
+- **Google Cloud project:** **David's Apps** (project ID
+  `empyrean-plexus-504512-b6`, number `285172097021`). The client ID in
+  `.env` starts with that number.
+- **Shared with:** the Tax Planner used this same client (and may still - see
+  its README), so changing the client's settings can affect both apps.
 
-The app uses the same Google Cloud project and OAuth client as the Tax
-Planner (same `pluck1983-source.github.io` origin). In
-[console.cloud.google.com](https://console.cloud.google.com), open that
-project, then:
+Google Cloud projects (personal Gmail account, no organisation). A client
+ID always starts with its project's number:
+
+| Project | Project ID | Project number |
+|---|---|---|
+| David's Apps | `empyrean-plexus-504512-b6` | `285172097021` |
+| Tax Planner | `tax-planner-510419` | `687936999132` |
+| Stock List | `stock-list-514919` | `613676181585` |
+
+The till uses its own **Till** project (`till-515322`) in the Wardrobe to
+Wallet Google account.
+
+In [console.cloud.google.com](https://console.cloud.google.com), open the
+**David's Apps** project, then:
 
 1. **Google Auth Platform → Data access**: add the scope
    `https://www.googleapis.com/auth/drive` (Google Drive API, "See, edit,
@@ -249,7 +257,7 @@ verifying it is only needed to open the app to the public, not for a
 handful of listed test users. Testing-mode sign-ins may also need
 re-approving every 7 days.
 
-To give Wardrobe to Wallet its own consent-screen name instead of "Tax Planner",
+To give Wardrobe to Wallet its own consent-screen name and project,
 create a separate Cloud project with the same steps (plus enabling the
 Google Drive API) and put its client ID in `.env` as
 `VITE_GOOGLE_CLIENT_ID`. The data stays in the Drive folder either way.

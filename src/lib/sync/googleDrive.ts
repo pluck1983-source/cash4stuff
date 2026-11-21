@@ -6,19 +6,18 @@ import { AuthRequiredError, type CloudProvider, type RemoteFileMeta } from './ty
  * on an iPhone home-screen app).
  *
  * Data lives in an ordinary, visible "Wardrobe to Wallet" folder: one JSON file
- * plus a "photos" subfolder with one JPEG per item photo. The business owner
- * signs in first, which creates the folder in their Drive, then shares it
- * (Editor) with anyone else who should use the app. Those people sign in
- * with their own Google accounts and the app finds the shared file by name,
- * so nobody needs anyone else's password and access is removed by unsharing.
+ * plus a "photos" subfolder with one JPEG per item photo, in the business's
+ * own Google account. Everyone who uses the app signs in with that one
+ * account.
  *
- * That needs the full "drive" scope - drive.appdata is private to each
- * account, and drive.file can't see a file another person's copy of the app
- * created. In Testing mode only listed test users can sign in at all.
+ * Only the "drive.file" scope is asked for: the app can see and change the
+ * files it made itself, and nothing else in the Drive. (Data that was moved
+ * here with "Move data into this account" counts - those copies were made by
+ * the app.) A file someone drops into the folder by hand stays invisible.
  */
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-const SCOPE = 'openid email https://www.googleapis.com/auth/drive';
+const SCOPE = 'openid email https://www.googleapis.com/auth/drive.file';
 const FILE_NAME = 'cash4stuff-data.json';
 const FOLDER_NAME = 'Wardrobe to Wallet';
 const PHOTOS_FOLDER_NAME = 'photos';
@@ -117,7 +116,7 @@ function consumeRedirectResult() {
     sessionStorage.setItem(SIGN_IN_ERROR_KEY, error === 'access_denied' ? 'Google sign-in was cancelled or blocked. Check this Google account is added as a test user, then try again.' : `Google sign-in failed (${error}).`);
   } else if (token && granted && !granted.includes('auth/drive')) {
     // Google's consent screen lets people untick Drive access - without it nothing can sync.
-    sessionStorage.setItem(SIGN_IN_ERROR_KEY, 'Google Drive access was not allowed. Sign in again and tick the box to let Wardrobe to Wallet see and edit your Google Drive files.');
+    sessionStorage.setItem(SIGN_IN_ERROR_KEY, 'Google Drive access was not allowed. Sign in again and tick the box to let Wardrobe to Wallet use the Google Drive files it made.');
   } else if (token) {
     writeToken({ token, expiresAt: Date.now() + Number(params.get('expires_in') ?? 3600) * 1000 });
     localStorage.removeItem(SILENT_TRIED_KEY);
@@ -142,7 +141,9 @@ function redirectToGoogle(silent: boolean, loginHint?: string | null): Promise<n
     response_type: 'token',
     scope: SCOPE,
     state,
-    include_granted_scopes: 'true',
+    // Off, so a full-Drive permission granted to older versions of the app
+    // isn't folded back into new sign-ins.
+    include_granted_scopes: 'false',
     // "none" bounces straight back if the user is still signed in to Google
     // and has already allowed the app; otherwise it returns an error and we
     // show the Reconnect button instead.
@@ -185,7 +186,7 @@ async function driveErrorMessage(response: Response): Promise<string> {
   if (reason === 'accessNotConfigured' || reason === 'SERVICE_DISABLED' || /has not been used|is disabled/i.test(detail))
     return 'The Google Drive API is switched off in the Google Cloud project. Turn it on (APIs & Services → Library → Google Drive API → Enable), wait a few minutes, then tap retry.';
   if (reason === 'insufficientPermissions' || reason === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT' || /insufficient/i.test(detail))
-    return 'Google Drive access was not allowed. Sign out in Settings, sign in again and tick the box to let Wardrobe to Wallet see and edit your Google Drive files.';
+    return 'Google Drive access was not allowed. Sign out in Settings, sign in again and tick the box to let Wardrobe to Wallet use the Google Drive files it made.';
   if (response.status === 404) return 'The Wardrobe to Wallet data file could not be found in Google Drive - it may have been deleted or un-shared.';
   return `Google Drive request failed (${response.status}${detail ? `: ${detail}` : ''})`;
 }

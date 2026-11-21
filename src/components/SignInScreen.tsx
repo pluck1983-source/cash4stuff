@@ -28,7 +28,7 @@ export function SignInScreen({ status, error, onSignIn }: { status: SyncStatus; 
         </button>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <p className="mt-6 text-xs text-slate-500 dark:text-slate-400">
-          Everything is kept in a Wardrobe to Wallet folder in the business owner's Google Drive. Helpers sign in with their own Google account once the owner has shared that folder with them.
+          Everything is kept in a Wardrobe to Wallet folder in the business's Google Drive. Sign in with the business Google account - the app can only see the files it made, nothing else in that Drive.
         </p>
       </div>
     </div>

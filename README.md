@@ -207,6 +207,18 @@ our own: the browser talks straight to Google.
 
 ### One-time Google setup
 
+**Where this app's Google sign-in is set up:**
+
+- **Google account:** the owner's personal Gmail account - the same one as
+  the Tax Planner (not the Wardrobe to Wallet account).
+- **Google Cloud project:** **Tax Planner** (project ID `tax-planner-510419`).
+  This app has no project of its own.
+- **OAuth client:** the Tax Planner's web client, ID in `.env`. Changing that
+  client's settings affects both apps.
+- The **David's Apps** and **Stock List** projects in the same account are
+  not used by this app. The till uses its own **Till** project in the
+  Wardrobe to Wallet account.
+
 The app uses the same Google Cloud project and OAuth client as the Tax
 Planner (same `pluck1983-source.github.io` origin). In
 [console.cloud.google.com](https://console.cloud.google.com), open that

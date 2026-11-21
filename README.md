@@ -214,8 +214,9 @@ our own: the browser talks straight to Google.
 - **Google Cloud project:** **David's Apps** (project ID
   `empyrean-plexus-504512-b6`, number `285172097021`). The client ID in
   `.env` starts with that number.
-- **Shared with:** the Tax Planner used this same client (and may still - see
-  its README), so changing the client's settings can affect both apps.
+- **Shared with:** the Tax Planner uses this same client, so changing the
+  client's settings (redirect URIs, consent screen, test users) affects both
+  apps. The project named "Tax Planner" is not used by either app.
 
 Google Cloud projects (personal Gmail account, no organisation). A client
 ID always starts with its project's number:

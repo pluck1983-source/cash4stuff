@@ -150,14 +150,14 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState | ((
         }
         const who = email ?? 'this Google account';
         const startNew = window.confirm(
-          `No Wardrobe to Wallet data is in ${who}'s ${provider.label}, or shared with it.\n\n` +
-            `OK - start a new Wardrobe to Wallet folder in this account's ${provider.label} (do this if you run the business).\n` +
-            `Cancel - someone else keeps the data: ask them to share their Wardrobe to Wallet folder with ${who}, then sign in again.`,
+          `No Wardrobe to Wallet data made by this app is in ${who}'s ${provider.label}.\n\n` +
+            `OK - start a new, empty Wardrobe to Wallet folder in this account (only if the business has never used the app before).\n` +
+            `Cancel - this is the wrong account: sign in with the business Google account instead.`,
         );
         if (!startNew) {
           writeMeta(null);
           setAccountEmail(null);
-          setError(`Ask the business owner to share their Wardrobe to Wallet folder in Google Drive with ${who} (as Editor), then sign in again.`);
+          setError(`${who} has no Wardrobe to Wallet data. Sign in with the business Google account.`);
           setStatus('off');
           return;
         }

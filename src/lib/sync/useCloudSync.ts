@@ -27,6 +27,8 @@ interface SyncMeta {
 }
 
 const META_KEY = 'cash4stuff-sync-v1';
+/** Set while "Move data into this account" hasn't finished, so it can be run again to carry on */
+const MOVE_KEY = 'cash4stuff-move-unfinished';
 const PUSH_DEBOUNCE_MS = 2000;
 
 const provider: CloudProvider = googleDriveProvider;
@@ -66,6 +68,8 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState | ((
   const [dataOwner, setDataOwner] = useState<string | null>(() => readMeta()?.dataOwner ?? null);
   const [pendingPhotos, setPendingPhotos] = useState(0);
   const [error, setError] = useState<string | null>(() => takeSignInError());
+  const [moveProgress, setMoveProgress] = useState<{ done: number; total: number } | null>(null);
+  const [moveUnfinished, setMoveUnfinished] = useState(() => localStorage.getItem(MOVE_KEY) === '1');
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -262,6 +266,41 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState | ((
     setStatus('off');
   }, []);
 
+  /**
+   * Copies the data and photos into the signed-in account's own Drive (see
+   * CloudProvider.moveDataHere). Syncs first so the copy includes this
+   * device's latest changes, and again after so it switches to the copy.
+   */
+  const moveDataHere = useCallback(async (): Promise<{ photosCopied: number; originalOwner: string | null } | null> => {
+    if (!provider.moveDataHere || !readMeta()) return null;
+    await sync();
+    while (running.current) await new Promise((resolve) => window.setTimeout(resolve, 300));
+    running.current = true;
+    localStorage.setItem(MOVE_KEY, '1');
+    setMoveUnfinished(true);
+    setMoveProgress({ done: 0, total: 0 });
+    let result: { photosCopied: number; originalOwner: string | null } | null = null;
+    try {
+      result = await provider.moveDataHere((done, total) => setMoveProgress({ done, total }));
+      localStorage.removeItem(MOVE_KEY);
+      setMoveUnfinished(false);
+      setError(null);
+    } catch (e) {
+      setError(
+        e instanceof AuthRequiredError
+          ? 'The Google sign-in ran out part way through the move. Sign in again, then tap "Carry on moving" - it picks up where it stopped.'
+          : `The move stopped part way: ${e instanceof Error ? e.message : String(e)}. Nothing has been lost - tap "Carry on moving" to try again.`,
+      );
+      setStatus('error');
+    } finally {
+      running.current = false;
+      rerun.current = false;
+      setMoveProgress(null);
+    }
+    if (result) await sync();
+    return result;
+  }, [sync]);
+
   // Sync once on load if this device was signed in before.
   useEffect(() => {
     if (readMeta()) void sync(true);
@@ -336,5 +375,8 @@ export function useCloudSync(state: AppState, replaceState: (next: AppState | ((
     connect,
     disconnect,
     syncNow: sync,
+    moveDataHere,
+    moveProgress,
+    moveUnfinished,
   };
 }

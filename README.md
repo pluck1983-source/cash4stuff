@@ -233,30 +233,24 @@ Wallet Google account.
 In [console.cloud.google.com](https://console.cloud.google.com), open the
 **David's Apps** project, then:
 
-1. **Google Auth Platform → Data access**: add the scope
-   `https://www.googleapis.com/auth/drive` (Google Drive API, "See, edit,
-   create and delete all of your Google Drive files").
-2. **Google Auth Platform → Audience → Test users**: add the Gmail address
-   of **every person** who will sign in (the owner and any helpers). While
-   the app is in *Testing*, nobody else can sign in at all.
+1. **Google Auth Platform → Data access**: the scopes are
+   `https://www.googleapis.com/auth/drive.file` (this app - only the files it
+   made) and `https://www.googleapis.com/auth/drive.appdata` (the Tax
+   Planner, same client). Neither needs the full `.../auth/drive` scope, so
+   don't add it back.
+2. **Google Auth Platform → Audience → Test users** (only while the project
+   is in *Testing*): add the business Google account everyone signs in with.
 3. **Google Auth Platform → Clients** → the web client → *Authorized
    redirect URIs*: add `https://pluck1983-source.github.io/cash4stuff/`.
 4. Repo Settings → Pages → Source: **GitHub Actions** (the workflow tries to
    enable this itself).
 
-Then:
-
-1. **The owner** opens the app, signs in with their Google account and
-   presses **OK** to start a new Wardrobe to Wallet folder.
-2. In Google Drive, the owner right-clicks the **Wardrobe to Wallet** folder →
-   *Share* → adds each helper's Gmail as **Editor**.
-3. **Each helper** opens the app and signs in with their own Google account.
-
-Expect Google to show "Google hasn't verified this app" on sign-in
-(*Advanced → Go to …*): full Drive access is a restricted scope, and
-verifying it is only needed to open the app to the public, not for a
-handful of listed test users. Testing-mode sign-ins may also need
-re-approving every 7 days.
+Everyone who uses the app signs in with the one business Google account.
+The data lives in a **Wardrobe to Wallet** folder in that account's Drive,
+and the app can only see the files it made there. A file dropped into the
+folder by hand stays invisible to the app. Data that lived in another
+account was copied across with Settings → Account → *Move data into this
+account* (needed full Drive access, which the app no longer asks for).
 
 To give Wardrobe to Wallet its own consent-screen name and project,
 create a separate Cloud project with the same steps (plus enabling the

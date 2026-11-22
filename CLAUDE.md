@@ -11,8 +11,8 @@
 - **Scope:** `openid email` + `drive.file` (since PR #48; previously full
   `drive`).
 - **Data:** a `Wardrobe to Wallet` folder (`cash4stuff-data.json` + `photos`)
-  in Google Drive. PR #47 added moving it into a business Google account -
-  confirm with the owner which account holds it now and record it here.
+  in the Drive of the **Wardrobe to Wallet business Gmail** (moved there from
+  the personal Gmail by PR #47). The Cloud project stays in the personal Gmail.
 
 ## Keep the app registry up to date
 

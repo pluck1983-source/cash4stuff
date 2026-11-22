@@ -209,8 +209,9 @@ our own: the browser talks straight to Google.
 
 **Where this app's Google sign-in is set up:**
 
-- **Google account:** the owner's personal Gmail account (not the Wardrobe
-  to Wallet account).
+- **Google account:** the Cloud project is in the owner's personal Gmail
+  account; the app's data (the Wardrobe to Wallet folder) is in the
+  Wardrobe to Wallet business Gmail.
 - **Google Cloud project:** **David's Apps** (project ID
   `empyrean-plexus-504512-b6`, number `285172097021`). The client ID in
   `.env` starts with that number.
